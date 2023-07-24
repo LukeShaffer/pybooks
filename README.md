@@ -62,7 +62,7 @@ Further, Accounts are usually grouped into the same common categories for most
 businesses in order to standardize things from one accountant to the next.
 You can see a list of common account names from quickbooks [here](https://qbkaccounting.com/chart-accounts-complete-list-descriptions/)
 
-For example, here are some sample accounts you might find
+For example, here are some sample accounts you might find in the wild:
 
 - Cash Account
     - The total net sum of cash at a person or business's disposal.  You can see
@@ -145,6 +145,23 @@ budget, this is more than sufficient.
 ## Ledger
 Finally, we tie it all together with the one book to rule them all, the ledger.
 A ledger is a master copy of all transactions that occur across all accounts.
+
+Essentially, this is structured like a journal, with a list of line items and
+whether they are net credits or debits, but instead of being listed by date,
+they are consolidated per account and show the net flow over the period of
+time being accounted for.
+
+The General Ledger is the name for the one top-level master ledger that contains
+the total net inflows and outflows for the entity. It is either composed of
+line items listing individual account debits / credits, or of consolidated
+subledgers that wrap up a set of related transactions.
+
+### Ledgers vs SubLedgers
+You can have numerous levels of accounting separation.  If one of the areas of
+account have very many Accounts and makes too much noise in the General Ledger,
+you can bundle a group of accounts into a subledger that will contain all of
+the individual transactions and can then be included in the General Ledger as
+a single line item. 
 
 # Building for Local Development
 make sure you source your venv
