@@ -161,7 +161,74 @@ You can have numerous levels of accounting separation.  If one of the areas of
 account have very many Accounts and makes too much noise in the General Ledger,
 you can bundle a group of accounts into a subledger that will contain all of
 the individual transactions and can then be included in the General Ledger as
-a single line item. 
+a single line item.
+
+# How to use this code (Getting Started)
+To get started using this code accounting for things, we must first lay the
+ground rules for the things we want to account for. Here is a checklist
+
+1. Create your Account numbering system - ie, what segments you want your
+    account numbers to consist of, and what their meanings are.
+    ie, if we wanted to create a 7-digit account number with 3 different
+    numbered sections, this is how we would create that.
+    ```python
+    from pybooks.account import AccountNumberSegment, AccountNumberTemplate
+
+    seg1_vals = {
+        f'{key:02}': val
+        for key, val in [(_, f'cmpny{_}') for _ in range(1, 4)]
+    }
+    seg1_vals.update({
+        f'{key:02}': val
+        for key, val in [(_, f'cmpny{_}') for _ in range(10, 15)]
+    })
+
+    seg2_vals = {
+        f'{key:02}': val
+        for key, val in [(_, f'dpt{_}') for _ in range(3)]
+    }
+
+    seg1 = AccountNumberSegment(seg1_vals)
+    seg2 = AccountNumberSegment(seg2_vals)
+
+    seg3 = [
+        AccountNumberSegment(
+            re.compile(r'1\d\d'), length=3, flat_value='Assets'),
+        AccountNumberSegment(
+            [f'{_:03}' for _ in range(200, 300)], flat_value='Liabilities'),
+        AccountNumberSegment(
+            re.compile(r'3\d{2}'), length=3, flat_value='Equity'),
+        AccountNumberSegment(
+            [f'{_:03}' for _ in range(400, 500)], flat_value='Revenue'),
+        AccountNumberSegment(
+            re.compile(r'5\d\d'), length=3, flat_value='Expenses'),
+    ]
+
+    template = AccountNumberTemplate((
+        ('Division Code', seg1),
+        ('Department Code', seg2),
+        ('Account Code', *seg3)
+    ))
+    ```
+
+2. Create some accounts that follow your created template
+    ```python
+    from pybooks.account import Account
+    acc_nums = ['10-02-200', '10-00-300', '01-00-300', '11-01-500']
+    accounts = []
+    for acc_num in acc_nums:
+        new_account = Account('new account', acc_num, template)
+        accounts.append(new_account)
+    ```
+
+3. Define your general ledger and add your accounts to it.
+    ```python
+    from pybooks.ledger import GeneralLedger
+
+    gen = GeneralLedger('my general ledger')
+    for account in accounts:
+        gen.add_account(account)
+    ```
 
 # Building for Local Development
 make sure you source your venv
