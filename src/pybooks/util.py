@@ -3,6 +3,22 @@ from datetime import datetime
 class DuplicateException(Exception):
     pass
 
+class InvalidAccountNumberException(Exception):
+    # TODO maybe through a logging statement in here saying which part of the
+    # account number doesn't line up.
+    '''
+    Raised when an account is trying to be parsed that does not match the
+    given account number template
+    '''
+    pass
+
+class NullAccountTemplateError(Exception):
+    '''
+    To be raised when a _Ledger or subclass is interacted with in a way that
+    involves child accounts before the Ledger has initialized its account
+    number template.
+    '''
+    pass
 
 def parse_date(date, user_format=None):
     '''
