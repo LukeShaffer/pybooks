@@ -8,8 +8,15 @@ import re
 
 from pybooks.util import DuplicateException, NullAccountTemplateError, \
     InvalidAccountNumberException
-from pybooks.enums import AccountingMethods
-from pybooks.account import ChartOfAccounts, Account
+from pybooks.enums import AccountingMethods, AccountType
+from pybooks.account import ChartOfAccounts, Account, AccountNumberTemplate
+
+# Control vars for the filter_accounts() method
+FILTER_TOKEN = '__'
+DEFINED_FILTERS = (
+    'eq',
+    'in'
+)
 
 
 class _Ledger:
@@ -58,14 +65,67 @@ class _Ledger:
         self.accounts[account.number] = account
         self.chart_of_accounts[account.number] = account
 
+
+    def _keys_match(self, acc_key, user_key):
+        '''
+        Need to separate the comparing of keys (eg, "name") from their values
+        for the filter function
+        '''
+        if FILTER_TOKEN in user_key:
+            # Not even worrying about multiple
+            user_key = user_key.split(FILTER_TOKEN)[0]
+
+        flag = re.IGNORECASE
+        # Convert to Boolean for debug statements
+        return bool(re.match(f"^{acc_key.replace(' ', '_')}$", user_key, flag))
+
+    def _term_matches_filter(self, account_val, user_key, user_val,
+                             fuzzy_match=True):
+        '''
+        Implement the logic of the kw__contains filters for the filter_accounts
+        method for the various filters I choose to implement.
+        '''
+
+        # Default to equality if none specified
+        user_filter = 'eq'
+
+        if FILTER_TOKEN in user_key:
+            user_key, user_filter = user_key.split(FILTER_TOKEN)
+
+        if user_filter not in DEFINED_FILTERS:
+            raise ValueError('User specified a nonexistant filter '
+                                f'operation: {user_filter}')
+        
+        # Save space
+        re_flag = re.IGNORECASE
+        if user_filter == 'eq':
+            # fuzzy_match means ignore case and type differences
+            if fuzzy_match:
+                if re.match(f'^{user_val}$', account_val, re_flag):
+                    return True
+            elif account_val == user_val:
+                return True
+        # The value must be an iterable
+        elif user_filter == 'in':
+            for val in user_val:
+                if fuzzy_match and re.match(f'^{val}$', account_val, re_flag):
+                    return True
+                elif val == account_val:
+                    return True
+        
+        # Default return False
+        return False
+
     def filter_accounts(self, match_all=True, fuzzy_match=True, **kwargs) \
-            -> [Account]:
+            -> list[Account]:
         '''
         An attempt to make a django-like account search and filter system for
         Ledgers to filter their respective accounts based on account codes.
 
         The accounts are filtered via the named segments based in to the
         AccountNumberTemplate used to initialize the Account.
+
+        New addition, adding __in designations like Django queryset filters
 
         `match_all`: toggles AND or OR behavior for the given filters
         `fuzzy_match`: toggles "fuzzy matching" of the given filters where
@@ -77,45 +137,41 @@ class _Ledger:
 
         ledger.filter_accounts(account_code='121')
         '''
+
         to_return = []
         if not kwargs:
-            return to_return
+            return []
 
         for account in self.chart_of_accounts.values():
-            matches_all = True
-            for arg, value in kwargs.items():
-                # All possible values we want to allow the user to filter on
-                search_dict = {
-                    # All the named section from this account's number
-                    **account._account_number._dict,
-                    'name': account.name
-                }
+            # Keep track of AND or OR behavior
+            matches_all_user_keys = True
+
+            # All possible values we want to allow the user to filter on
+            search_dict = {
+                # All the named sections from this account's number
+                **account._account_number._dict,
+                'name': account.name
+            }
+
+            for acc_key, acc_value in search_dict.items():
                 
-                for term in search_dict:
-                    flag = re.IGNORECASE
-                    # Iterate over every user given filter
-                    if re.match(f'^{arg}$', term.replace(' ', '_'), flag):
-                        term_matches_filter = False
-                        # fuzzy_match means ignore case and type differences
-                        if fuzzy_match:
-                            if re.match(f'^{value}$', search_dict[term], flag):
-                                term_matches_filter = True
-                        elif search_dict[term] == value:
-                            term_matches_filter = True
+                for user_key, user_value in kwargs.items():
+                    if self._keys_match(acc_key, user_key):
+                        term_matches_filter = self._term_matches_filter(
+                            acc_value, user_key, user_value, fuzzy_match
+                        )
                         
                         if term_matches_filter:
-                            # If OR behavior is specified, add the account to
-                            # the output
+                            # OR short-circuit
                             if not match_all:
                                 to_return.append(account)
+                                break
                         else:
-                            matches_all = False
+                            matches_all_user_keys = False
 
-                # If it doesn't match here skip rest of args to save time
-                if match_all and not matches_all:
-                    break
-
-            if matches_all:
+            # Only add the AND if OR behavior not specified - will already be
+            # added
+            if matches_all_user_keys and match_all:
                 to_return.append(account)
 
         return to_return
@@ -133,18 +189,60 @@ class _Ledger:
             return None
         return result[0]
 
+    def get_net_balance(self, reporting_format, match_all=True,
+                        fuzzy_match=True, **kwargs)->int:
+        '''
+        A function to aggregate the net balances for any subset of the
+        accounts contained by this ledger or its subledgers.
+
+        For any specific subset of the accounts under this ledger, aggregate
+        their credits and debits and report the final amount in terms of
+        net credits or debits
+
+        The reporting format controls which side of the balance sheet will be
+        considered the positive one in terms of the net balance.
+
+        For example, if someone owes $100,000 and owns $100, the net balance
+        is a $99,900 credit (liability).
+            If we report as a CREDIT, we will return positive $99,900
+            If we report as a DEBIT, we will return negative ($99,900)
+
+        reporting_format is either one of "AccountType.CREDIT" or
+            "AccountType.DEBIT"
+        '''
+        accounts = self.filter_accounts(match_all, fuzzy_match, **kwargs)
+        
+        # This could either be 0 or raise an error.  I'll just return 0 for now
+        if not accounts:
+            return 0
+
+        net_balance = 0
+
+
+        # The net_balance property does the logic of parsing whether
+        for account in accounts:
+            if account.account_type == reporting_format:
+                net_balance += account.net_balance
+            else:
+                net_balance -= account.net_balance
+
+        return net_balance
+            
+
 class GeneralLedger(_Ledger):
     '''
     The top-level master ledger for an entity, composed of other subledgers
     or accounts
     '''
-    def __init__(self, name, account_number_template=None, **kwargs):
+    def __init__(self, name:str,
+                 account_number_template:AccountNumberTemplate|None=None,
+                 **kwargs):
         super().__init__(name, *kwargs)
         self.subledgers = set()
         # The AccountNumberTemplate that all child accounts must follow
         self.account_number_template = account_number_template 
     
-    def _make_subledger_name(self, name):
+    def _make_subledger_name(self, name:str):
         return f'{self.name}__{name}'
     
     def add_subledger(self, name=None, subledger=None):
