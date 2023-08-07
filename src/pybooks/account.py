@@ -5,6 +5,7 @@ import re
 from collections import OrderedDict
 
 from pybooks.util import InvalidAccountNumberException
+from pybooks.enums import AccountType
 
 
 class ChartOfAccounts(dict):
@@ -328,7 +329,8 @@ class _AccountNumber:
         return False
 
 class Account:
-    def __init__(self, name, number, template, initial_balance=0, tags=set()):
+    def __init__(self, name:str, number:str, template:AccountNumberTemplate,
+                 account_type:AccountType, initial_balance=0):
         # The name is just a text description of the account with no strict
         # rules or guidelines
         self.name = name
@@ -341,17 +343,18 @@ class Account:
         # formatted with the template's default separator
         self.number = self._account_number.number
 
+        # Either a credit or a debit
+        self.account_type = account_type
+
         # A set of JournalEntry instances added to whenever this account is
         # involved in a Journal addition
         self.journal_entries = set()
 
-        # TODO this doesn't do anything yet
-        # A searchable set of tags / qualifiers for this account
-        self.tags = tags
-
         # TODO no logic around initial balanaces yet
         self.initial_balance = initial_balance
 
+        # These are accessed by each JournalEntry every time a new one
+        # regarding this account is posted to a Journal
         self.gross_debit = 0
         self.gross_credit = 0
 
@@ -377,7 +380,23 @@ class Account:
         elif self == journal_entry.acc_credit:
             self.gross_credit += journal_entry.amount
         
-    
+    @property
+    def net_balance(self):
+        '''
+        Return the net balance of the account, depending on whether it is a
+        credit or a debit
+        '''
+        to_return = self.initial_balance
+
+        if self.account_type == AccountType.CREDIT:
+            to_return += self.gross_credit
+            to_return -= self.gross_debit
+        elif self.account_type == AccountType.DEBIT:
+            to_return += self.gross_debit
+            to_return -= self.gross_credit
+        
+        return to_return
+
 
     def print_t_account(self):
         '''
