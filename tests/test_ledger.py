@@ -2,15 +2,16 @@
 Basic fundamental functional tests of the ledger system
 '''
 import re
+from datetime import datetime
 
 import pytest
 
 from pybooks.ledger import GeneralLedger, SubLedger
 from pybooks.account import Account, AccountNumberSegment, \
     AccountNumberTemplate
-from pybooks.enums import CoreSubledgers
-from pybooks.util import DuplicateException, NullAccountTemplateError, \
-    InvalidAccountNumberException
+from pybooks.journal import Journal, JournalEntry
+from pybooks.enums import AccountType
+from pybooks.util import DuplicateException
 
 def init_template():
     seg1_vals = {
@@ -74,11 +75,11 @@ def test_add_accounts():
     gen = GeneralLedger('general')
     sub = SubLedger('Cash', general_ledger=gen)
 
-    account1 = Account('acc1', '01-01-001', template)
-    account2 = Account('acc2', '01-01-002', template)
-    account3 = Account('acc3', '01-01-003', template)
-    account_dup = Account('newacc', '01-01-001', template)
-    account_dup2 = Account('newacc', '01-01-004', template)
+    account1 = Account('acc1', '01-01-001', template, AccountType.CREDIT)
+    account2 = Account('acc2', '01-01-002', template, AccountType.DEBIT)
+    account3 = Account('acc3', '01-01-003', template, AccountType.CREDIT)
+    account_dup = Account('newacc', '01-01-001', template, AccountType.DEBIT)
+    account_dup2 = Account('newacc', '01-01-004', template, AccountType.DEBIT)
 
     sub.add_account(account1)
     sub.add_account(account2)
@@ -107,10 +108,10 @@ def test_filter_accounts():
 
     gen = GeneralLedger('general ledger')
 
-    acc1 = Account('account 1', '10-02-200', template)
-    acc2 = Account('account 2', '10-00-300', template)
-    acc3 = Account('account 3', '01-00-300', template)
-    acc4 = Account('account 4', '11-01-500', template)
+    acc1 = Account('account 1', '10-02-200', template, AccountType.DEBIT)
+    acc2 = Account('account 2', '10-00-300', template, AccountType.CREDIT)
+    acc3 = Account('account 3', '01-00-300', template, AccountType.DEBIT)
+    acc4 = Account('account 4', '11-01-500', template, AccountType.CREDIT)
 
     for acc in (acc1, acc2, acc3, acc4):
         gen.add_account(acc)
@@ -137,6 +138,28 @@ def test_filter_accounts():
                                division_code='01')
     assert results == [acc1, acc3]
 
+def test_filter_account__in():
+    '''
+    Test the kw__in filter arg to filter_accounts
+    '''
+    template = init_template()
+
+    gen = GeneralLedger('general ledger')
+
+    acc1 = Account('account 1', '10-02-200', template, AccountType.DEBIT)
+    acc2 = Account('account 2', '10-00-300', template, AccountType.CREDIT)
+    acc3 = Account('account 3', '01-00-300', template, AccountType.DEBIT)
+    acc4 = Account('account 4', '11-01-500', template, AccountType.CREDIT)
+
+    for acc in (acc1, acc2, acc3, acc4):
+        gen.add_account(acc)
+    
+    results = gen.filter_accounts(name__in=['account 1', 'account 2'])
+    assert results == [acc1, acc2]
+
+    results = gen.filter_accounts(department_code__in=['01', '00'])
+    assert results == [acc2, acc3, acc4]
+
 def test_get_account():
     '''
     Make sure the API to get only a single account throws an error if more
@@ -146,10 +169,10 @@ def test_get_account():
 
     gen = GeneralLedger('general ledger')
 
-    acc1 = Account('account 1', '10-02-200', template)
-    acc2 = Account('account 2', '10-00-300', template)
-    acc3 = Account('account 3', '01-00-300', template)
-    acc4 = Account('account 4', '11-01-500', template)
+    acc1 = Account('account 1', '10-02-200', template, AccountType.DEBIT)
+    acc2 = Account('account 2', '10-00-300', template, AccountType.CREDIT)
+    acc3 = Account('account 3', '01-00-300', template, AccountType.DEBIT)
+    acc4 = Account('account 4', '11-01-500', template, AccountType.CREDIT)
 
     for acc in (acc1, acc2, acc3, acc4):
         gen.add_account(acc)
@@ -159,6 +182,78 @@ def test_get_account():
     assert gen.get_account(account_code=500) == acc4
 
     assert gen.get_account(account_code=123213) is None
+
+def test_get_net_balance():
+    '''
+    define and test the API for aggregating balances for a subset of the
+    ledger's accounts
+    '''
+    template = init_template()
+
+    gen = GeneralLedger('general ledger')
+
+    acc1 = Account('account 1', '10-02-200', template, AccountType.DEBIT)
+    acc2 = Account('account 2', '10-00-300', template, AccountType.CREDIT)
+    acc3 = Account('account 3', '01-00-300', template, AccountType.DEBIT)
+    acc4 = Account('account 4', '11-01-500', template, AccountType.CREDIT)
+
+    for acc in (acc1, acc2, acc3, acc4):
+        gen.add_account(acc)
+    
+    j = Journal()
+
+    # Debit acc1 $5000 from acc2
+    # Debit acc3 $10000 from acc4
+    for _ in range(10):
+        je = JournalEntry(datetime.now(), acc1, acc2, 500)
+        j.add_entry(je)
+        je = JournalEntry(datetime.now(), acc3, acc4, 1000)
+        j.add_entry(je)
+
+    # When netting credits and debits, the balance should cancel
+    result = gen.get_net_balance(name__in=['account 1', 'account 2'],
+                                 match_all=False, 
+                                 reporting_format=AccountType.DEBIT)
+    assert result == 0
+
+    result = gen.get_net_balance(name__in=['account 1', 'account 2'],
+                                 match_all=False,
+                                 reporting_format=AccountType.CREDIT)
+    assert result == 0
+
+    result = gen.get_net_balance(name__in=['account 1', 'account 4'],
+                                 match_all=False,
+                                 reporting_format=AccountType.DEBIT)
+    assert result == -5000
+
+
+    result = gen.get_net_balance(name__in=['account 1', 'account 4'],
+                                 match_all=False,
+                                 reporting_format=AccountType.CREDIT)
+    assert result == 5000
+
+    # When netting only credits or debits, the amounts should combine
+
+    result = gen.get_net_balance(name__in=['account 1', 'account 3'],
+                                 match_all=False,
+                                 reporting_format=AccountType.DEBIT)
+    assert result == 15000
+
+    result = gen.get_net_balance(name__in=['account 1', 'account 3'],
+                                 match_all=False,
+                                 reporting_format=AccountType.CREDIT)
+    assert result == -15000
+
+    result = gen.get_net_balance(name__in=['account 2', 'account 4'],
+                                 match_all=False,
+                                 reporting_format=AccountType.DEBIT)
+    assert result == -15000
+
+    result = gen.get_net_balance(name__in=['account 2', 'account 4'],
+                                 match_all=False,
+                                 reporting_format=AccountType.CREDIT)
+    assert result == 15000
+    
 
 
 def test_compare_chart_of_accounts():
@@ -171,10 +266,10 @@ def test_compare_chart_of_accounts():
     gen = GeneralLedger('general ledger')
     gen2 = GeneralLedger('gen ledger 2')
 
-    acc1 = Account('account 1', '10-02-200', template)
-    acc2 = Account('account 2', '10-00-300', template)
-    acc3 = Account('account 3', '01-00-300', template)
-    acc4 = Account('account 4', '11-01-500', template)
+    acc1 = Account('account 1', '10-02-200', template, AccountType.DEBIT)
+    acc2 = Account('account 2', '10-00-300', template, AccountType.CREDIT)
+    acc3 = Account('account 3', '01-00-300', template, AccountType.DEBIT)
+    acc4 = Account('account 4', '11-01-500', template, AccountType.CREDIT)
 
     for acc in (acc1, acc2, acc3, acc4):
         gen.add_account(acc)
@@ -185,8 +280,10 @@ def test_compare_chart_of_accounts():
     # Now adding an "identical" but separate account to each ledger should
     # make their charts of accounts different
 
-    gen.add_account(Account("new account", '12-01-000', template))
-    gen2.add_account(Account('new account', '12-01-000', template))
+    gen.add_account(Account("new account", '12-01-000', template,
+                            AccountType.CREDIT))
+    gen2.add_account(Account('new account', '12-01-000', template,
+                             AccountType.DEBIT))
 
     assert gen.chart_of_accounts != gen2.chart_of_accounts
 

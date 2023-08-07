@@ -4,6 +4,7 @@ import re
 
 from pybooks.journal import Journal, JournalEntry
 from pybooks.account import Account, AccountNumberTemplate, AccountNumberSegment
+from pybooks.enums import AccountType
 
 
 def init_template():
@@ -40,8 +41,8 @@ def test_add_entries():
     j = Journal()
     template = init_template()
 
-    acc_credit = Account('Creditor', '01-00-0000', template)
-    acc_debit = Account('Debtor', '01-00-0001', template)
+    acc_credit = Account('Creditor', '01-00-0000', template, AccountType.CREDIT)
+    acc_debit = Account('Debtor', '01-00-0001', template, AccountType.DEBIT)
 
     now = datetime(2023, 7, 23)
     for _ in range(3):
@@ -67,8 +68,8 @@ def test_print_journal(capsys):
     j = Journal()
     template = init_template()
 
-    acc_credit = Account('Creditor', '01-00-0001', template)
-    acc_debit = Account('Debtor', '01-00-0002', template)
+    acc_credit = Account('Creditor', '01-00-0001', template, AccountType.CREDIT)
+    acc_debit = Account('Debtor', '01-00-0002', template, AccountType.DEBIT)
 
     now = datetime(2023, 7, 23)
     for _ in range(3):

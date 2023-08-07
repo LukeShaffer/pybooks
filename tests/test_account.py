@@ -6,6 +6,7 @@ import pytest
 from pybooks.account import Account, _AccountNumber, AccountNumberSegment,\
     AccountNumberTemplate
 from pybooks.journal import Journal, JournalEntry
+from pybooks.enums import AccountType
 from pybooks.util import InvalidAccountNumberException
 
 def init_template():
@@ -55,7 +56,7 @@ def test_init():
         ('acc_num', seg)
     ])
     _AccountNumber('1', template)
-    Account('Cash - BMO', '1', template)
+    Account('Cash - BMO', '1', template, AccountType.DEBIT)
     template = init_template()
 
 
@@ -188,8 +189,8 @@ def test_add_journal():
 
     j = Journal()
 
-    acc_credit = Account('Creditor', '01-01-100', template)
-    acc_debit = Account('Debtor', '01-01-101', template)
+    acc_credit = Account('Creditor', '01-01-100', template, AccountType.CREDIT)
+    acc_debit = Account('Debtor', '01-01-101', template, AccountType.DEBIT)
 
     now = datetime(2023, 7, 23)
     for _ in range(3):
@@ -203,8 +204,8 @@ def test_gross_balance():
     template = init_template()
     j = Journal()
 
-    acc_credit = Account('Creditor', '01-01-100', template)
-    acc_debit = Account('Debtor', '01-01-101', template)
+    acc_credit = Account('Creditor', '01-01-100', template, AccountType.CREDIT)
+    acc_debit = Account('Debtor', '01-01-101', template, AccountType.DEBIT)
 
     now = datetime(2023, 7, 23)
     for _ in range(3):
