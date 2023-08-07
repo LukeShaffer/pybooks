@@ -1,8 +1,15 @@
-from enum import IntEnum, auto
+from enum import IntEnum, Enum, auto
 
 class AccountingMethods:
     ACCRUAL = 'Accrual Accounting'
     CASH = 'Cash Accounting'
+
+class AccountType(str, Enum):
+    '''
+    Best name I could think of for the Debit / Credit divide
+    '''
+    DEBIT = 'Debit'
+    CREDIT = 'Credit'
 
 class CoreSubledgers(IntEnum):
     '''
