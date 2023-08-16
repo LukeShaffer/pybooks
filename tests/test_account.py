@@ -4,59 +4,22 @@ import re
 import pytest
 
 from pybooks.account import Account, _AccountNumber, AccountNumberSegment,\
-    AccountNumberTemplate
+    AccountNumberTemplate, ChartOfAccounts
 from pybooks.journal import Journal, JournalEntry
 from pybooks.enums import AccountType
-from pybooks.util import InvalidAccountNumberException
+from pybooks.util import InvalidAccountNumberException, DuplicateException
 
-def init_template():
-    '''
-    Reusable test code
-    '''
-    seg1_vals = {
-        f'{key:02}': val
-        for key, val in [(_, f'cmpny{_}') for _ in range(1, 4)]
-    }
-    seg1_vals.update({
-        f'{key:02}': val
-        for key, val in [(_, f'cmpny{_}') for _ in range(10, 15)]
-    })
+from util import init_template
 
-    seg2_vals = {
-        f'{key:02}': val
-        for key, val in [(_, f'dpt{_}') for _ in range(3)]
-    }
-
-    seg1 = AccountNumberSegment(seg1_vals)
-    seg2 = AccountNumberSegment(seg2_vals)
-
-    seg3 = [
-        AccountNumberSegment(
-            re.compile(r'1\d\d'), length=3, flat_value='Assets'),
-        AccountNumberSegment(
-            [f'{_:03}' for _ in range(200, 300)], flat_value='Liabilities'),
-        AccountNumberSegment(
-            re.compile(r'3\d\d'), length=3, flat_value='Equity'),
-        AccountNumberSegment(
-            [f'{_:03}' for _ in range(400, 500)], flat_value='Revenue'),
-        AccountNumberSegment(
-            re.compile(r'5\d\d'), length=3, flat_value='Expenses'),
-    ]
-
-    template = AccountNumberTemplate((
-        ('Division Code', seg1),
-        ('Department Code', seg2),
-        ('Account Code', *seg3)
-    ))
-    return template
 
 def test_init():
-    seg = AccountNumberSegment({'1': 'test'})
-    template = AccountNumberTemplate([
-        ('acc_num', seg)
-    ])
-    _AccountNumber('1', template)
-    Account('Cash - BMO', '1', template, AccountType.DEBIT)
+    seg = AccountNumberSegment('test seg', {'1': 'test'})
+    template = AccountNumberTemplate(seg)
+    acc_num = _AccountNumber('1', template)
+    Account('Cash - BMO', '1', AccountType.DEBIT, template=template)
+
+    ChartOfAccounts(template)
+    # Test that the template I use for all my other tests inits
     template = init_template()
 
 
@@ -65,56 +28,57 @@ def test_account_number_segments():
     I have created new classes for more exact control of account numbers
     '''
     seg1_vals = {
-        f'{key:02}': val
-        for key, val in zip(range(1, 4), ['cmpny1', 'cmpny2', 'cmpny3'])
+        f'{num:02}': f'cmpny{num}'
+        for num in range(1, 4)
     }
     seg1_vals.update({
-        f'{key:02}': val
-        for key, val in zip(range(10, 15), ['cmpny10', 'cmpny11', ...])
+        f'{num:02}': f'cmpny{num}'
+        for num in range(10, 15)
     })
 
-    seg2_vals = {
-        f'{key:02}': val
-        for key, val in zip(range(3), ['dpt0', 'dpt1', 'dpt2'])
-    }
-
-    seg1 = AccountNumberSegment(seg1_vals)
-    seg2 = AccountNumberSegment(seg2_vals)
+    seg1 = AccountNumberSegment('Comany Name', seg1_vals)
+    seg2 = AccountNumberSegment('Department Name', {
+        f'{num:02}': f'dpt{num}'
+        for num in range(3)
+    })
 
     assert seg1['01'] == 'cmpny1'
     assert seg1['11'] == 'cmpny11'
     assert seg2['02'] == 'dpt2'
 
-    seg3 = [
-        AccountNumberSegment(
-            [f'{_:03}' for _ in range(100, 200)], flat_value='Assets'),
-        AccountNumberSegment(
-            [f'{_:03}' for _ in range(200, 300)], flat_value='Liabilities'),
-        AccountNumberSegment(
-            [f'{_:03}' for _ in range(300, 400)], flat_value='Equity'),
-        AccountNumberSegment(
-            [f'{_:03}' for _ in range(400, 500)], flat_value='Revenue'),
-        AccountNumberSegment(
-            re.compile(r'5\d{2}'), flat_value='Expenses', length=3),
-    ]
+    seg3 = AccountNumberSegment('Account Type', {
+        re.compile(r'1\d\d'): 'Assets',
+        re.compile(r'2\d\d'): 'Liabilities',
+        re.compile(r'3\d\d'): 'Equity',
+        re.compile(r'4\d\d'): 'Revenue',
+        re.compile(r'5\d\d'): 'Expenses',
+    }, is_regex=True)
 
-    # Test the raw flat_value behavior
-    assert seg3[0]['100'] == 'Assets'
-    assert seg3[2]['300'] == 'Equity'
+    # Test regex __getitem__ behavior
+    assert seg3['100'] == 'Assets'
+    assert seg3['300'] == 'Equity'
 
+    # Partial matches must not succeed
     with pytest.raises(KeyError):
-        assert seg3[0]['300'] == 'Invalid'
-
-    # Test regex behavior
-    assert seg3[4].get_key_length() == 3
-    with pytest.raises(TypeError):
-        AccountNumberSegment(re.compile(r'test\d'), flat_value='no length')
-
-    with pytest.raises(InvalidAccountNumberException):
-        AccountNumberSegment(re.compile(r'\d{1,2}'))
+        seg3['3000']
     
-    with pytest.raises(InvalidAccountNumberException):
-        AccountNumberSegment(re.compile(r'\d+'))
+    with pytest.raises(KeyError):
+        seg3['0300']
+
+    # Variable length regex's are not allowed
+    var_len_regex = (
+        re.compile(r'\d{1}'),
+        re.compile(r'\d{1,2}'),
+        re.compile(r'\d+')
+    )
+
+    for reg in var_len_regex:
+        with pytest.raises(InvalidAccountNumberException):
+            AccountNumberSegment('test', {reg: 'value'}, is_regex=True)
+
+    # Forgetting to designate a regex segment as a regex
+    with pytest.raises(TypeError):
+        AccountNumberSegment('test', {re.compile(r'\d'): 'a'})
 
 def test_account_number_template():
     template = init_template()
@@ -136,6 +100,7 @@ def test_account_number_template():
         '10--02-100',
         ' 10-02-100',
         '10-99-100',
+        '10-02-001',
         '10-02-99',
         '10_00_599',
         '10-00-700'
@@ -153,6 +118,13 @@ def test_show_account_template():
 
     assert template._show_form() == 'XX-XX-XXX'
 
+def test_account_number_from_template():
+    '''
+    In order to facilitate creating larger account numbers with default
+    sections, I have added an API to create an account number from named
+    values for each of the segments of an account number, additionally
+    including default
+    '''
 
 def test_account_number():
     '''
@@ -169,7 +141,7 @@ def test_account_number():
         _AccountNumber('99-00-200', template)
     
     assert number1 != number2
-    assert not number1 == number2
+    assert (number1 == number2) is False
 
     assert number1 == _AccountNumber('10-02-200', template)
 
@@ -178,19 +150,22 @@ def test_account_number():
     assert all([number3 < num for num in [number1, number2, number4]])
     assert all([number4 > num for num in [number1, number2, number3]])
 
-    assert number1['Division Code'] == '10'
+    assert number1['Company Code'] == '10'
     assert number1['Department Code'] == '02'
     assert number2['Department Code'] == '00'
     assert number4['Account Code'] == '500'
 
+    assert number1.number == '10-02-200'
 
 def test_add_journal():
     template = init_template()
 
     j = Journal()
 
-    acc_credit = Account('Creditor', '01-01-100', template, AccountType.CREDIT)
-    acc_debit = Account('Debtor', '01-01-101', template, AccountType.DEBIT)
+    acc_credit = Account('Creditor', '01-01-100', AccountType.CREDIT,
+                         template=template)
+    acc_debit = Account('Debtor', '01-01-101', AccountType.DEBIT,
+                        template=template)
 
     now = datetime(2023, 7, 23)
     for _ in range(3):
@@ -204,8 +179,10 @@ def test_gross_balance():
     template = init_template()
     j = Journal()
 
-    acc_credit = Account('Creditor', '01-01-100', template, AccountType.CREDIT)
-    acc_debit = Account('Debtor', '01-01-101', template, AccountType.DEBIT)
+    acc_credit = Account('Creditor', '01-01-100', AccountType.CREDIT,
+                         template=template)
+    acc_debit = Account('Debtor', '01-01-101', AccountType.DEBIT,
+                        template=template)
 
     now = datetime(2023, 7, 23)
     for _ in range(3):
@@ -214,3 +191,55 @@ def test_gross_balance():
     
     assert acc_credit.gross_credit == 300
     assert acc_debit.gross_debit == 300
+
+# ChartOfAccounts tests
+def test_chart_of_accounts_add_account():
+    seg = AccountNumberSegment('test seg', {'1': 'test', '2': 'test'})
+    template = AccountNumberTemplate(seg)
+    account = Account('Cash - BMO', '1', AccountType.DEBIT, template=template)
+    chart = ChartOfAccounts(template)
+
+    chart.add_account(account)
+
+    with pytest.raises(DuplicateException):
+        chart.add_account(account)
+    
+    chart.add_account('new account', '2', AccountType.CREDIT)
+
+    # Adding an account with a different template raises an error
+    seg2 = AccountNumberSegment('seg', {'100': 'test'})
+    template2 = AccountNumberTemplate(seg2)
+    with pytest.raises(ValueError):
+        chart.add_account(Account('test', '100', AccountType.CREDIT,
+                                template=template2))
+
+def test_account():
+    template = init_template()
+    acc_num = _AccountNumber('01-01-100', template)
+
+    # Test equality
+    acc1 = Account('Cash - JPM', acc_num, AccountType.CREDIT)
+    acc2 = Account('Cash - JPM', '01-01-100', AccountType.CREDIT,
+                   template=template)
+    
+    assert acc1 == acc2
+
+    # Name, number, and accountType must all match
+    assert acc1 != Account('Cash - BMO', acc_num, AccountType.CREDIT)
+    assert acc1 != Account('Cash - JPM', '02-01-100', AccountType.CREDIT,
+                           template=template)
+    assert acc1 != Account('Cash - JPM', acc_num, AccountType.DEBIT)
+
+    # Accounts must have a name
+    with pytest.raises(ValueError):
+        Account('', '01-01-100', AccountType.CREDIT, template=template)
+
+    # String account numbers must be initialized with a template
+    with pytest.raises(TypeError):
+        Account('test', '123', AccountType.CREDIT)
+
+    # Create an account with an invalid accountType
+    with pytest.raises(ValueError):
+        Account('test', '01-01-100', 'invalid', template=template)
+
+    

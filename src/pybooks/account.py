@@ -4,120 +4,66 @@ Provides functionality for accounting Accounts
 import re
 from collections import OrderedDict
 
-from pybooks.util import InvalidAccountNumberException
+from pybooks.util import InvalidAccountNumberException, DuplicateException
 from pybooks.enums import AccountType
-
-
-class ChartOfAccounts(dict):
-    '''
-    A structure that holds a set of related accounts and related formatting
-    functions
-
-    Much TODO here
-    '''
-    def __init__(self, mapping={}):
-        super().__init__(mapping)
-
-    # Copy dict() builtins
-    @classmethod
-    def _wrap_methods(cls, names):
-        def wrap_method_closure(name):
-            def inner(self, *args):
-                result = getattr(super(cls, self), name)(*args)
-                if isinstance(result, set) and not hasattr(result, 'foo'):
-                    result = cls(result, foo=self.foo)
-                return result
-            inner.fn_name = name
-            setattr(cls, name, inner)
-        for name in names:
-            wrap_method_closure(name)
-        
-
-    def print_table(self):
-        '''
-        Prints a visual representation of the accounts contained, listed in
-        the following order:
-
-        Balance Sheet Accounts
-            - Assets
-            - Liabilities
-            - Owners' Equity
-        
-        Income Statement Accoutns
-            - Operating Revenues
-            - Operating Expenses
-            - Non-Operating Revenues and Gains
-            - Non-Operating Expenses and Losses
-        '''
-        raise NotImplementedError()
-
-# Make sure the set wrapper class has all of the builtin set methods
-ChartOfAccounts._wrap_methods([
-    '__class_getitem__', '__contains__', '__delattr__', '__delitem__',
-    '__eq__', '__format__', '__ge__', '__getattribute__', '__getitem__',
-    '__gt__', '__hash__', '__ior__', '__iter__', '__le__', '__len__', '__lt__',
-    '__ne__', '__or__', '__reduce__', '__reduce_ex__', '__repr__',
-    '__reversed__', '__ror__', '__setattr__', '__setitem__', '__sizeof__',
-    'clear', 'copy', 'fromkeys', 'get', 'items', 'keys', 'pop', 'popitem',
-    'setdefault', 'update', 'values'
-])
 
 class AccountNumberSegment:
     '''
     A class to wrap account number segment functionality
 
     These will either be initialized with a dictionary of exactly defined
-    key-value pairs, or a range / list / regex and a static category value such
-    as "Assets".  These will function as the allowable / defined values and
-    their meanings.
+    key-value pairs, or a regex and a static category value such as "Assets".
+    These will function as the allowable / defined values and their meanings.
 
-    TODO perhaps change this class to be initialized with a regex instead of a
-    range() or a dictionary
     '''
-    def __init__(self, meanings, flat_value=None, length=None):
+    def __init__(self, name:str, meanings:dict[str|re.Pattern, str],
+                 is_regex=False):
+        self.name = name
         self.meanings = meanings
-        self.flat_value = flat_value
-        self.length = length
+        self.is_regex = is_regex
+        self.length = None
 
+        # I am disallowing variable-length regexes to simplify validation
         regex_repetition_chars = '*+?'
 
-    
         # Regex sanitation, make sure that there aren't any variable length
         # regexes
         
-        if isinstance(meanings, re.Pattern):
-            error_msg = 'Cannot have a variable length AccountNumberSegment.'
-            if re.findall(r'{\d+,\d+}', meanings.pattern):
-                raise InvalidAccountNumberException(error_msg)
-            for char in regex_repetition_chars:
-                if char in meanings.pattern:
-                    raise InvalidAccountNumberException(error_msg)
+        if is_regex:
+            sample_key = next(iter(meanings)).pattern
+            length = len(sample_key)
 
-            # Make sure that a length has been reported
-            if length is None:
-                raise TypeError(
-                    '"length" keyword not specified when initializing from '
-                    'regex')
+            for _ in re.findall(r'\\[a-zA-Z]', sample_key):
+                length -= 1
+
+            # Save for access later
+            self.length = length
+
+            for regex in meanings:
+                error_msg = ('Cannot have a variable length '
+                    'AccountNumberSegment.')
+                # re.match() only matches at the beginning
+                if re.search(r'{\d+}', regex.pattern):
+                    raise InvalidAccountNumberException(error_msg)
+                # Search for any comma-separated repetition counts - "{1,2}"
+                if re.findall(r'{\d+,\d+}', regex.pattern):
+                    raise InvalidAccountNumberException(error_msg)
+                for char in regex_repetition_chars:
+                    if char in regex.pattern:
+                        raise InvalidAccountNumberException(error_msg)
         
         # Check for uniform meanings lengths
         elif isinstance(meanings, dict):
-            first_len = 0
-            for key in meanings:
-                first_len = len(key)
-                self.length = first_len
-                break
+            first_key = next(iter(meanings))
+            first_len = len(first_key)
+            self.length = first_len
+            if isinstance(first_key, re.Pattern):
+                raise TypeError('Regex segment encountered with no is_regex '
+                                'flag')
             
             if not all([len(x) == first_len for x in meanings]):
                 raise ValueError('AccountNumberSegment input dict has '
                     'variable length keys')
-
-        # General iterable case
-        else:
-            first_len = len(meanings[0])
-            self.length = first_len
-            if not all([len(x) == first_len for x in meanings]):
-                raise ValueError('AccountNumberSegment has variable length '
-                    'meanings')
 
     
     def __contains__(self, item):
@@ -135,33 +81,12 @@ class AccountNumberSegment:
         Throws a KeyError if the number segment is outside the defined range
         for the current segment.
         '''
-        if self.flat_value is not None:
-            if key in self:
-                return self.flat_value
-            raise KeyError(
-                f'Key {key} does not exist in current account segment')
+        if self.is_regex:
+            if len(key) == self.length:
+                for regex, value in self.meanings.items():
+                    if regex.match(str(key)):
+                        return value
         return self.meanings[key]
-    
-    def get_key_length(self):
-        if self.length is not None:
-            return self.length
-
-        if isinstance(self.meanings, re.Pattern):
-            # A self-reported length field that must be included when
-            # initializing off of a regex
-            return self.length
-
-        # self.meanings will be a flat list
-        if self.flat_value is not None:
-            for meaning in self.meanings:
-                self.length = len(meaning)
-                return len(meaning)
-        
-        # self.meanings is a dict
-        for meaning in self.meanings.keys():
-            self.length = len(meaning)
-            return len(meaning)
-
 
 
 class AccountNumberTemplate:
@@ -192,24 +117,54 @@ class AccountNumberTemplate:
     / defined values for that segment and the defined names that have been
     given them.
 
+    Of these possible values, the first value will be assumed to be the
+    default.
+
     This would define an account number of the following form:
     XX-XX-XXX
 
     Where we have a specific enumeration of values for each segment.
     '''
-    def __init__(self, segments, separator='-'):
-        self.segments = segments
+    def __init__(self, *args:AccountNumberSegment, separator='-'):
+        self.segments:dict[str, AccountNumberSegment] = OrderedDict()
         self.separator = separator
-    
-    def _show_form(self, fill_char='X'):
+
+        # segment values I am reserving for system use
+        _blacklist = [
+            '_default',
+        ]
+
+        for segment in args:
+            if not isinstance(segment, AccountNumberSegment):
+                raise ValueError('Initializing AccountNumberTemplate with a '
+                                 'type besides AccountNumberSegment: '
+                                 f'{type(segment)}')
+            if segment.name in _blacklist:
+                raise ValueError('Initializing AccountNumberTemplate with '
+                                 f'illegal name: {segment.name}')
+            if segment.name in self.segments:
+                raise ValueError('Initializing AccountNumberTemplate with '
+                                 f'duplicate segment name: {segment.name}')
+            self.segments[segment.name] = segment
+            
+
+    def _show_form(self, fill_char='X', separator=None):
         '''
         Shows the number format of an account number following this template:
         eg: XX-XXX-XX
         '''
+        if separator is None:
+            separator = self.separator
         to_return = ''
-        for segment in self.segments:
-            to_return += fill_char * segment[1].get_key_length()
-            to_return += self.separator
+
+        for segment in self.segments.values():
+            to_return += fill_char * segment.length
+            to_return += separator
+        
+        # Avoid errors if this template has no segments
+        if not to_return:
+            return ''
+        
         # Remove last fill_char, also returns an empty
         return to_return[:-1]
 
@@ -230,21 +185,30 @@ class AccountNumberTemplate:
         if isinstance(number, Account):
             number = number.number
 
-        for current, rules in zip(number.split(separator), self.segments):
-            # Each segment can have multiple possible definitions
-            meaning, seg_defs = rules[0], rules[1:]
-
-            # Need to find each segment for the whole number to be valid
-            found = False
-            
-            for segment in seg_defs:                
-                if current in segment:
-                    found = True
-                    break
-            if not found:
+        # Important that it's zipped so that templates with identical segments
+        # in different orders do not match
+        for val, seg in zip(number.split(separator), self.segments.values()):
+            try:
+                # seg.__getitem__ is defined to do all the logic here or spit
+                # out a KeyError
+                seg[val]
+            except KeyError:
                 return False
+            continue
+        return True
+    
+    def make_account_number(self, **kwargs):
+        '''
+        In order to facilitate larger account numbers, I have seen fit to
+        expand the account number template functionality to be able to create
+        a corresponding _AccountNumber instance from a named set of inputs.
 
-        return True  
+        This function will serve as an OOP method to create account numbers
+        from the named meanings of each of the named segments of the account
+        number.
+
+        For example, assume we have an account number template
+        '''
 
     def show_template(self):
         '''
@@ -284,8 +248,8 @@ class _AccountNumber:
         self._dict = OrderedDict()
 
         values = number.split(template.separator)
-        for segment, value in zip(template.segments, values):
-            self._dict[segment[0]] = value
+        for seg_name, value in zip(template.segments, values):
+            self._dict[seg_name] = value
     
     @property
     def number(self):
@@ -329,21 +293,32 @@ class _AccountNumber:
         return False
 
 class Account:
-    def __init__(self, name:str, number:str, template:AccountNumberTemplate,
-                 account_type:AccountType, initial_balance=0):
+    def __init__(self, name:str, number:_AccountNumber|str,
+                 account_type:AccountType, initial_balance=0,
+                 template:AccountNumberTemplate=None):
         # The name is just a text description of the account with no strict
         # rules or guidelines
+        if not name:
+            raise ValueError('Trying to initialize account with an empty name')
         self.name = name
 
         # The number is a strictly templated value that must conform to an
         # AccountNumberTemplate.
-        self._account_number = _AccountNumber(number, template)
+        if not isinstance(number, _AccountNumber):
+            if template is None:
+                raise TypeError('String AccountNumber given with no Template')
+            self._account_number = _AccountNumber(number, template)
+        else:
+            self._account_number = number
 
         # Easy access to a raw string version of the account number
         # formatted with the template's default separator
         self.number = self._account_number.number
 
         # Either a credit or a debit
+        if account_type is None or not isinstance(account_type, AccountType):
+            raise ValueError('Trying to create a new account with an invalid '
+                             'type')
         self.account_type = account_type
 
         # A set of JournalEntry instances added to whenever this account is
@@ -363,6 +338,19 @@ class Account:
 
     def __repr__(self):
         return self.name
+
+    def __eq__(self, other):
+        if not isinstance(other, Account):
+            return NotImplemented
+        
+        return (self.name == other.name and self.number == other.number
+                and self.account_type == other.account_type)
+
+    def __hash__(self):
+        '''
+        I want to be able to have a set() of Accounts
+        '''
+        return hash((self.name, self.number, self.account_type))
 
     @property
     def display_name(self):
@@ -405,3 +393,99 @@ class Account:
         TODO
         '''
         raise NotImplementedError()
+
+class ChartOfAccounts(dict):
+    '''
+    A structure that holds a set of related accounts and related formatting
+    functions
+
+    Much TODO here
+    '''
+    def __init__(self, template:AccountNumberTemplate=None, mapping={}):
+        super().__init__(mapping)
+
+        if template is None:
+            template = AccountNumberTemplate(
+                AccountNumberSegment('DUMMY', {'1': 'no_meaning'}))
+
+        if not isinstance(template, AccountNumberTemplate):
+            raise TypeError('template must be of class '
+                            'pybooks.account.AccountNumberTemplate.')
+        self.template = template
+
+    # Copy dict() builtins
+    @classmethod
+    def _wrap_methods(cls, names):
+        def wrap_method_closure(name):
+            def inner(self, *args):
+                result = getattr(super(cls, self), name)(*args)
+                if isinstance(result, set) and not hasattr(result, 'foo'):
+                    result = cls(result, foo=self.foo)
+                return result
+            inner.fn_name = name
+            setattr(cls, name, inner)
+        for name in names:
+            wrap_method_closure(name)
+    
+    def add_account(self, account:Account|str, number:str=None,
+                    account_type:AccountType=None):
+        '''
+        Add a new account to this ledger, either as a pre-existing Account
+        instance or creating a new one from the raw details and the account
+        number template associated with this ledger.
+        '''
+        if not isinstance(account, Account):
+            if not isinstance(number, str) and \
+                    isinstance(account_type, AccountType):
+                raise TypeError('Invalid account initialization values.')
+            
+            if not self.template.validate_account_number(number):
+                raise InvalidAccountNumberException(f'{number} does not match '
+                                                    'the given template')
+            account = Account(account, number, account_type,
+                              template=self.template)
+
+        # Safety Check: The account must have the same template as this chart
+        if account._account_number.template != self.template:
+            print(account._account_number.template, self.template)
+            raise ValueError('Trying to add an Account with a different '
+                             'AccountNumberTemplate')
+
+        # This test must come first as it is more permissive
+        if account.number in self:
+            raise DuplicateException('Trying to add a new account with a '
+                                        f'duplicate number: {account.number}')
+    
+        self[account.number] = account
+        # Return the account to add to a ledger's personal collection of
+        # accounts
+        return account
+
+    def print_table(self):
+        '''
+        Prints a visual representation of the accounts contained, listed in
+        the following order:
+
+        Balance Sheet Accounts
+            - Assets
+            - Liabilities
+            - Owners' Equity
+        
+        Income Statement Accoutns
+            - Operating Revenues
+            - Operating Expenses
+            - Non-Operating Revenues and Gains
+            - Non-Operating Expenses and Losses
+        '''
+        raise NotImplementedError()
+
+# Make sure the set wrapper class has all of the builtin set methods
+ChartOfAccounts._wrap_methods([
+    '__class_getitem__', '__contains__', '__delattr__', '__delitem__',
+    '__eq__', '__format__', '__ge__', '__getattribute__', '__getitem__',
+    '__gt__', '__hash__', '__ior__', '__iter__', '__le__', '__len__', '__lt__',
+    '__ne__', '__or__', '__reduce__', '__reduce_ex__', '__repr__',
+    '__reversed__', '__ror__', '__setattr__', '__setitem__', '__sizeof__',
+    'clear', 'copy', 'fromkeys', 'get', 'items', 'keys', 'pop', 'popitem',
+    'setdefault', 'update', 'values'
+])

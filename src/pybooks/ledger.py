@@ -6,8 +6,7 @@ Also contains helper methods to print and export the ledger as well.
 '''
 import re
 
-from pybooks.util import DuplicateException, NullAccountTemplateError, \
-    InvalidAccountNumberException
+from pybooks.util import DuplicateException
 from pybooks.enums import AccountingMethods, AccountType
 from pybooks.account import ChartOfAccounts, Account, AccountNumberTemplate
 
@@ -48,22 +47,19 @@ class _Ledger:
         raise NotImplementedError()
 
 
-    def add_account(self, account):
-        if not isinstance(account, Account):
-            raise TypeError('Account must be of type pybooks.account.Account')
-
-        # This test must come first as it is more permissive
-        if account in self.chart_of_accounts:
-            if account != self.chart_of_accounts[account.number]:
-                raise DuplicateException('Trying to add a new account with a '
-                                         f'duplicate number: {account.number}')
-        
+    def add_account(self, account:Account|str, number:str=None,
+                    account_type:AccountType=None):
+        '''
+        Add a new account to this ledger, either as a pre-existing Account
+        instance or creating a new one from the raw details and the account
+        number template associated with this ledger.
+        '''
+        # If there is a name conflict, this will error out
+        account = self.chart_of_accounts.add_account(account, number,
+                                                     account_type)
         if account.number in self.accounts:
-            raise DuplicateException(
-                f'Account {account.number} already exists in this ledger.')
-        
+            raise DuplicateException('Account already exists in this ledger.')
         self.accounts[account.number] = account
-        self.chart_of_accounts[account.number] = account
 
 
     def _keys_match(self, acc_key, user_key):
@@ -143,9 +139,6 @@ class _Ledger:
             return []
 
         for account in self.chart_of_accounts.values():
-            # Keep track of AND or OR behavior
-            matches_all_user_keys = True
-
             # All possible values we want to allow the user to filter on
             search_dict = {
                 # All the named sections from this account's number
@@ -153,25 +146,31 @@ class _Ledger:
                 'name': account.name
             }
 
-            for acc_key, acc_value in search_dict.items():
-                
-                for user_key, user_value in kwargs.items():
+            # Keep track of AND or OR behavior
+            num_user_keys_matched = 0
+
+            for user_key, user_value in kwargs.items():
+                for acc_key, acc_value in search_dict.items():
+                    # Goahead to compare key values
                     if self._keys_match(acc_key, user_key):
+                        # Not just a simple equality check, also does filters
                         term_matches_filter = self._term_matches_filter(
                             acc_value, user_key, user_value, fuzzy_match
                         )
                         
                         if term_matches_filter:
+                            num_user_keys_matched += 1
                             # OR short-circuit
                             if not match_all:
                                 to_return.append(account)
-                                break
-                        else:
-                            matches_all_user_keys = False
+
+                        # No point in hitting the other keys, we found the
+                        # match for this user input
+                        break
 
             # Only add the AND if OR behavior not specified - will already be
             # added
-            if matches_all_user_keys and match_all:
+            if match_all and num_user_keys_matched == len(kwargs.items()):
                 to_return.append(account)
 
         return to_return
@@ -234,14 +233,17 @@ class GeneralLedger(_Ledger):
     The top-level master ledger for an entity, composed of other subledgers
     or accounts
     '''
-    def __init__(self, name:str,
-                 account_number_template:AccountNumberTemplate|None=None,
+    def __init__(self, name:str, account_number_template:AccountNumberTemplate,
                  **kwargs):
         super().__init__(name, *kwargs)
         self.subledgers = set()
+
         # The AccountNumberTemplate that all child accounts must follow
-        self.account_number_template = account_number_template 
+        self.chart_of_accounts.template = account_number_template 
     
+    @property
+    def template(self):
+        return self.chart_of_accounts.template
     def _make_subledger_name(self, name:str):
         return f'{self.name}__{name}'
     
@@ -268,17 +270,19 @@ class SubLedger(_Ledger):
     A sub ledger with a collection of accounts.
     Must have a general ledger to which it is attached.
     '''
-    def __init__(self, name, general_ledger=None, **kwargs):
-        self.general_ledger = general_ledger
+    def __init__(self, name, general_ledger:GeneralLedger=None, **kwargs):
         # Account number templates can only live on GeneralLedger instances
         if 'account_number_template' in kwargs:
             raise ValueError('account_number_template can only be defined on '
                 'GeneralLedger instances')
 
         super().__init__(name, *kwargs)
+        general_ledger.add_subledger(subledger=self)
+        self.general_ledger = general_ledger
+        
 
     @property
-    def account_number_template(self):
+    def template(self):
         if self.general_ledger is None:
             return None
         return self.general_ledger.account_number_template

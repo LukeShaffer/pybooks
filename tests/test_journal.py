@@ -6,32 +6,8 @@ from pybooks.journal import Journal, JournalEntry
 from pybooks.account import Account, AccountNumberTemplate, AccountNumberSegment
 from pybooks.enums import AccountType
 
+from util import init_template
 
-def init_template():
-    seg1_vals = {
-        f'{key:02}': val
-        for key, val in [(_, f'cmpny{_}') for _ in range(1, 4)]
-    }
-
-    seg2_vals = {
-        f'{key:02}': val
-        for key, val in [(_, f'dpt{_}') for _ in range(3)]
-    }
-
-    seg1 = AccountNumberSegment(seg1_vals)
-    seg2 = AccountNumberSegment(seg2_vals)
-
-    seg3 = [
-        AccountNumberSegment(
-            re.compile(r'\d{4}'), length=3, flat_value='Account Name'),
-    ]
-
-    template = AccountNumberTemplate((
-        ('Division Code', seg1),
-        ('Department Code', seg2),
-        ('Account Code', *seg3)
-    ))
-    return template
 
 def test_init():
     j = Journal()
@@ -41,8 +17,10 @@ def test_add_entries():
     j = Journal()
     template = init_template()
 
-    acc_credit = Account('Creditor', '01-00-0000', template, AccountType.CREDIT)
-    acc_debit = Account('Debtor', '01-00-0001', template, AccountType.DEBIT)
+    acc_credit = Account('Creditor', '01-00-100', AccountType.CREDIT,
+                         template=template)
+    acc_debit = Account('Debtor', '01-00-300', AccountType.DEBIT,
+                        template=template)
 
     now = datetime(2023, 7, 23)
     for _ in range(3):
@@ -53,6 +31,7 @@ def test_add_entries():
     assert j._entries[now][2].date == now
     assert j._entries[now][1].acc_credit == acc_credit
 
+    # There is only one date
     assert len(j._entries) == 1
     assert j.num_entries == 3
 
@@ -68,8 +47,10 @@ def test_print_journal(capsys):
     j = Journal()
     template = init_template()
 
-    acc_credit = Account('Creditor', '01-00-0001', template, AccountType.CREDIT)
-    acc_debit = Account('Debtor', '01-00-0002', template, AccountType.DEBIT)
+    acc_credit = Account('Creditor', '01-00-100', AccountType.CREDIT,
+                         template=template)
+    acc_debit = Account('Debtor', '01-00-200', AccountType.DEBIT,
+                        template=template)
 
     now = datetime(2023, 7, 23)
     for _ in range(3):
@@ -124,46 +105,46 @@ def test_print_journal(capsys):
     j.print_journal(use_acc_numbers=True, use_acc_names=False)
     out, err = capsys.readouterr()
     assert out == dedent('''\
-    Date                 Account           Debit     Credit
-    =======================================================
-    January 23, 2023     01-00-0002        $10
-                             01-00-0001              $10
-    -------------------------------------------------------
-    July 23, 2023        01-00-0002        $5,000
-                             01-00-0001              $5,000
-    -------------------------------------------------------
-    July 23, 2023        01-00-0002        $5,000
-                             01-00-0001              $5,000
-    -------------------------------------------------------
-    July 23, 2023        01-00-0002        $5,000
-                             01-00-0001              $5,000
-    -------------------------------------------------------
-    December 23, 2023    01-00-0002        $1
-                             01-00-0001              $1
-    -------------------------------------------------------
+    Date                 Account          Debit     Credit
+    ======================================================
+    January 23, 2023     01-00-200        $10
+                             01-00-100              $10
+    ------------------------------------------------------
+    July 23, 2023        01-00-200        $5,000
+                             01-00-100              $5,000
+    ------------------------------------------------------
+    July 23, 2023        01-00-200        $5,000
+                             01-00-100              $5,000
+    ------------------------------------------------------
+    July 23, 2023        01-00-200        $5,000
+                             01-00-100              $5,000
+    ------------------------------------------------------
+    December 23, 2023    01-00-200        $1
+                             01-00-100              $1
+    ------------------------------------------------------
     ''')
 
 
     j.print_journal(use_acc_numbers=True, use_acc_names=True)
     out, err = capsys.readouterr()
     assert out == dedent('''\
-    Date                 Account                    Debit     Credit
-    ================================================================
-    January 23, 2023     01-00-0002 Debtor          $10
-                             01-00-0001 Creditor              $10
-    ----------------------------------------------------------------
-    July 23, 2023        01-00-0002 Debtor          $5,000
-                             01-00-0001 Creditor              $5,000
-    ----------------------------------------------------------------
-    July 23, 2023        01-00-0002 Debtor          $5,000
-                             01-00-0001 Creditor              $5,000
-    ----------------------------------------------------------------
-    July 23, 2023        01-00-0002 Debtor          $5,000
-                             01-00-0001 Creditor              $5,000
-    ----------------------------------------------------------------
-    December 23, 2023    01-00-0002 Debtor          $1
-                             01-00-0001 Creditor              $1
-    ----------------------------------------------------------------
+    Date                 Account                   Debit     Credit
+    ===============================================================
+    January 23, 2023     01-00-200 Debtor          $10
+                             01-00-100 Creditor              $10
+    ---------------------------------------------------------------
+    July 23, 2023        01-00-200 Debtor          $5,000
+                             01-00-100 Creditor              $5,000
+    ---------------------------------------------------------------
+    July 23, 2023        01-00-200 Debtor          $5,000
+                             01-00-100 Creditor              $5,000
+    ---------------------------------------------------------------
+    July 23, 2023        01-00-200 Debtor          $5,000
+                             01-00-100 Creditor              $5,000
+    ---------------------------------------------------------------
+    December 23, 2023    01-00-200 Debtor          $1
+                             01-00-100 Creditor              $1
+    ---------------------------------------------------------------
     ''')
     
 

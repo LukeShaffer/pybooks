@@ -3,15 +3,16 @@
 from collections import defaultdict
 from datetime import datetime
 
+from pybooks.account import Account
 from pybooks.util import parse_date
 
 class Journal:
     def __init__(self, currency_symbol='$'):
         # A dictionary from dates to a list of entries on that date
         # The combined date+index will mark the journal ID for the transaction
-        self._entries = defaultdict(list)
+        self._entries:defaultdict[datetime.datetime, list] = defaultdict(list)
         self.num_entries = 0
-        self.accounts = set()
+        self.accounts:set[Account] = set()
 
         self._currency = currency_symbol
     
