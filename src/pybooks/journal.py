@@ -180,7 +180,6 @@ class Journal:
         # Link all of the entries together
         for account in (entry.acc_credit, entry.acc_debit):
             self.add_account(account)
-            account.add_journal_entry(entry)
 
 
 
@@ -206,3 +205,6 @@ class JournalEntry:
         self.acc_credit = acc_credit
         self.amount = amount
         self.memo = memo
+
+        acc_credit.add_journal_entry(self)
+        acc_debit.add_journal_entry(self)
