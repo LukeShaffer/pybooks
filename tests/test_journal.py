@@ -43,6 +43,14 @@ def test_add_entries():
     assert len(j._entries) == 2
     assert j.num_entries == 6
 
+    # A journal entry that doesn't get posted to a journal will still affect
+    # account totals
+    assert acc_credit.gross_credit == 2100
+    assert acc_debit.gross_debit == 2100
+    je = JournalEntry(next_day, acc_debit, acc_credit, 200)
+    assert acc_credit.gross_credit == 2300
+    assert acc_debit.gross_debit == 2300
+
 def test_print_journal(capsys):
     j = Journal()
     template = init_template()
