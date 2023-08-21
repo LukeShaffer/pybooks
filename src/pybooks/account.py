@@ -16,6 +16,7 @@ class AccountNumberSegment:
     These will function as the allowable / defined values and their meanings.
 
     '''
+
     def __init__(self, name:str, meanings:dict[str|re.Pattern, str],
                  is_regex=False):
         self.name = name
@@ -26,8 +27,7 @@ class AccountNumberSegment:
         # I am disallowing variable-length regexes to simplify validation
         regex_repetition_chars = '*+?'
 
-        # Regex sanitation, make sure that there aren't any variable length
-        # regexes
+        # Determine standard key length for this segment
         
         if is_regex:
             sample_key = next(iter(meanings)).pattern
@@ -39,9 +39,10 @@ class AccountNumberSegment:
             # Save for access later
             self.length = length
 
+            # Validate all keys
             for regex in meanings:
                 error_msg = ('Cannot have a variable length '
-                    'AccountNumberSegment.')
+                    r'AccountNumberSegment (inlcudes {\d+}).')
                 # re.match() only matches at the beginning
                 if re.search(r'{\d+}', regex.pattern):
                     raise InvalidAccountNumberException(error_msg)
@@ -51,6 +52,16 @@ class AccountNumberSegment:
                 for char in regex_repetition_chars:
                     if char in regex.pattern:
                         raise InvalidAccountNumberException(error_msg)
+                
+                # Check uniform regex length
+                regex_length = len(regex.pattern)
+                for _ in re.findall(r'\\[a-zA-Z]', regex.pattern):
+                    regex_length -= 1
+                
+                if regex_length != self.length:
+                    raise InvalidAccountNumberException(
+                        'Variable length regex detected on Segment!')
+
         
         # Check for uniform meanings lengths
         elif isinstance(meanings, dict):
@@ -64,6 +75,7 @@ class AccountNumberSegment:
             if not all([len(x) == first_len for x in meanings]):
                 raise ValueError('AccountNumberSegment input dict has '
                     'variable length keys')
+
 
     
     def __contains__(self, item):
@@ -87,7 +99,6 @@ class AccountNumberSegment:
                     if regex.match(str(key)):
                         return value
         return self.meanings[key]
-
 
 class AccountNumberTemplate:
     '''
@@ -129,19 +140,11 @@ class AccountNumberTemplate:
         self.segments:dict[str, AccountNumberSegment] = OrderedDict()
         self.separator = separator
 
-        # segment values I am reserving for system use
-        _blacklist = [
-            '_default',
-        ]
-
         for segment in args:
             if not isinstance(segment, AccountNumberSegment):
                 raise ValueError('Initializing AccountNumberTemplate with a '
                                  'type besides AccountNumberSegment: '
                                  f'{type(segment)}')
-            if segment.name in _blacklist:
-                raise ValueError('Initializing AccountNumberTemplate with '
-                                 f'illegal name: {segment.name}')
             if segment.name in self.segments:
                 raise ValueError('Initializing AccountNumberTemplate with '
                                  f'duplicate segment name: {segment.name}')
@@ -241,6 +244,7 @@ class _AccountNumber:
 
     def __init__(self, number: str, template: AccountNumberTemplate):
         if template.validate_account_number(number) is False:
+            print(number, template)
             raise InvalidAccountNumberException(
                 f'{number} does not match the given template')
         
@@ -332,6 +336,13 @@ class Account:
         # regarding this account is posted to a Journal
         self.gross_debit = 0
         self.gross_credit = 0
+    
+    @classmethod
+    def from_template(cls, template:AccountNumberTemplate,
+                      account_type:AccountType, details:dict[str, str]):
+        '''
+        Create an account from a template
+        '''
 
     def __str__(self):
         return self.name
