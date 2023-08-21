@@ -76,9 +76,18 @@ def test_account_number_segments():
         with pytest.raises(InvalidAccountNumberException):
             AccountNumberSegment('test', {reg: 'value'}, is_regex=True)
 
-    # Forgetting to designate a regex segment as a regex
+    # Forgetting to designate a regex segment as a regex raises an error
     with pytest.raises(TypeError):
         AccountNumberSegment('test', {re.compile(r'\d'): 'a'})
+
+    # Creating a regex segment with different length regexs raises an error
+    regex = {
+        re.compile(r'\d'): '1',
+        re.compile(r'\d\d'): '2',
+    }
+    with pytest.raises(InvalidAccountNumberException):
+        AccountNumberSegment('test', regex, is_regex=True)
+
 
 def test_account_number_template():
     template = init_template()
@@ -120,11 +129,24 @@ def test_show_account_template():
 
 def test_account_number_from_template():
     '''
+    8/20/23 I am shelving the idea of default segments
     In order to facilitate creating larger account numbers with default
     sections, I have added an API to create an account number from named
     values for each of the segments of an account number, additionally
     including default
     '''
+    template = init_template()
+
+    acc = Account.from_template(template, AccountType.CREDIT, {
+        'Company Code': '01',
+        'Department Code': '01',
+        'Account Code': '100'
+    })
+
+    Account.from_template(template, AccountType.DEBIT, {
+        'DNE': 'sdfdsfsf',
+        'Account Code': '100'
+    })
 
 def test_account_number():
     '''
