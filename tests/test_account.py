@@ -290,6 +290,10 @@ def test_account_aggregation():
     assert Account.net_balance_agg(accounts[1:], AccountType.CREDIT) == 100
     assert Account.net_balance_agg(accounts[1:], AccountType.DEBIT) == -100
 
+    JournalEntry(datetime.now(), accounts[0], accounts[2], 500)
+    assert Account.net_balance_agg(accounts[1:], AccountType.CREDIT) == 600
+    assert Account.net_balance_agg([accounts[0]], AccountType.DEBIT) == 600
+
 def test_get_net_transfer():
     '''
     Check the transfers from one group of accounts to another
