@@ -244,7 +244,6 @@ class _AccountNumber:
 
     def __init__(self, number: str, template: AccountNumberTemplate):
         if template.validate_account_number(number) is False:
-            print(number, template)
             raise InvalidAccountNumberException(
                 f'{number} does not match the given template')
         
@@ -374,12 +373,9 @@ class Account:
 
     def add_journal_entry(self, journal_entry):
         self.journal_entries.add(journal_entry)
-        print(self.number)
         if self == journal_entry.acc_debit:
-            print('Increasing debit amount')
             self.gross_debit += journal_entry.amount
         elif self == journal_entry.acc_credit:
-            print('Increasing credit amount')
             self.gross_credit += journal_entry.amount
         
     @property
@@ -484,7 +480,6 @@ class ChartOfAccounts(dict):
 
         # Safety Check: The account must have the same template as this chart
         if account._account_number.template != self.template:
-            print(account._account_number.template, self.template)
             raise ValueError('Trying to add an Account with a different '
                              'AccountNumberTemplate')
 
