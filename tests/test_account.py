@@ -22,7 +22,6 @@ def test_init():
     # Test that the template I use for all my other tests inits
     template = init_template()
 
-
 def test_account_number_segments():
     '''
     I have created new classes for more exact control of account numbers
@@ -87,7 +86,6 @@ def test_account_number_segments():
     }
     with pytest.raises(InvalidAccountNumberException):
         AccountNumberSegment('test', regex, is_regex=True)
-
 
 def test_account_number_template():
     template = init_template()
@@ -265,3 +263,29 @@ def test_account():
         Account('test', '01-01-100', 'invalid', template=template)
 
     
+def test_account_aggregation():
+    '''
+    I am going to need a way to roll up multiple accounts and just get the
+    end net debit or credit balance
+    '''
+    template = init_template()
+    accounts = []
+
+    for x in range(3):
+        accounts.append(Account('acc', f'01-{x:02}-100', AccountType.CREDIT,
+                                template=template))
+    
+    # No transactions have been posted
+    assert Account.net_balance_agg(accounts, AccountType.CREDIT) == 0
+    assert Account.net_balance_agg(accounts, AccountType.DEBIT) == 0
+
+    # Don't need to post it anywhere, just the creation will register the 
+    # balance
+    # Debit acc0 and credit acc1
+    JournalEntry(datetime.now(), accounts[0], accounts[1], 100)
+
+    assert Account.net_balance_agg(accounts, AccountType.CREDIT) == 0
+    assert Account.net_balance_agg(accounts, AccountType.DEBIT) == 0
+
+    assert Account.net_balance_agg(accounts[1:], AccountType.CREDIT) == 100
+    assert Account.net_balance_agg(accounts[1:], AccountType.DEBIT) == -100

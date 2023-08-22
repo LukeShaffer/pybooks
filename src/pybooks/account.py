@@ -374,9 +374,12 @@ class Account:
 
     def add_journal_entry(self, journal_entry):
         self.journal_entries.add(journal_entry)
+        print(self.number)
         if self == journal_entry.acc_debit:
+            print('Increasing debit amount')
             self.gross_debit += journal_entry.amount
         elif self == journal_entry.acc_credit:
+            print('Increasing credit amount')
             self.gross_credit += journal_entry.amount
         
     @property
@@ -395,6 +398,29 @@ class Account:
             to_return -= self.gross_credit
         
         return to_return
+
+    @staticmethod
+    def net_balance_agg(accounts, report_format):
+        '''
+        Given an iterable of accounts, go through them and report the net
+        sum of their balances.
+
+        `report_format` controls whether the end result is reported as a
+        credit or debit (ie, should debts be positive or negative)
+        '''
+        debits = 0
+        credits = 0
+
+        for account in accounts:
+            debits += account.gross_debit
+            credits += account.gross_credit
+        
+        if report_format == AccountType.CREDIT:
+            return credits - debits
+        elif report_format == AccountType.DEBIT:
+            return debits - credits
+        else:
+            raise TypeError('Invalid reporting format specified')
 
 
     def print_t_account(self):
