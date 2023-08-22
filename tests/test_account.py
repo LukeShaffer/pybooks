@@ -289,3 +289,44 @@ def test_account_aggregation():
 
     assert Account.net_balance_agg(accounts[1:], AccountType.CREDIT) == 100
     assert Account.net_balance_agg(accounts[1:], AccountType.DEBIT) == -100
+
+def test_get_net_transfer():
+    '''
+    Check the transfers from one group of accounts to another
+    '''
+    debit_accounts = []
+    credit_accounts = []
+
+    template = init_template()
+    for x in range(1, 4):
+        debit_accounts.append(Account(f'acc{x}', f'{x:02}-01-100',
+                                      AccountType.CREDIT, template=template))
+    for x in range(10, 15):
+        credit_accounts.append(Account(f'acc{x}', f'{x:02}-01-100',
+                                       AccountType.DEBIT, template=template))
+    
+    for _ in range(3):
+        acc_debit = debit_accounts[_]
+        acc_credit = credit_accounts[_]
+        JournalEntry(datetime.now(), acc_debit, acc_credit, 100)
+    
+    assert Account.get_net_transfer(debit_accounts, credit_accounts) == 300
+
+    # One transaction going the other way should reduce total
+    JournalEntry(datetime.now(), credit_accounts[0], debit_accounts[0], 100)
+    assert Account.get_net_transfer(debit_accounts, credit_accounts) == 200
+
+    # Transactions made to outside accounts should have no effect
+    new_acc = Account('t', '01-02-100', AccountType.CREDIT, template=template)
+
+    for x in range(100):  
+        JournalEntry(datetime.now(), debit_accounts[x%len(debit_accounts)],
+                     new_acc, 100)
+        JournalEntry(datetime.now(), credit_accounts[x%len(credit_accounts)],
+                     new_acc, 100)
+        JournalEntry(datetime.now(), new_acc,
+                     debit_accounts[x%len(debit_accounts)], 100)
+        JournalEntry(datetime.now(), new_acc,
+                     credit_accounts[x%len(credit_accounts)], 100)
+    assert Account.get_net_transfer(debit_accounts, credit_accounts) == 200
+

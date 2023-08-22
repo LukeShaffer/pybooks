@@ -1,8 +1,11 @@
 '''
 Provides functionality for accounting Accounts
 '''
+from __future__ import annotations
+
 import re
 from collections import OrderedDict
+from pybooks.journal import JournalEntry
 
 from pybooks.util import InvalidAccountNumberException, DuplicateException
 from pybooks.enums import AccountType
@@ -326,7 +329,7 @@ class Account:
 
         # A set of JournalEntry instances added to whenever this account is
         # involved in a Journal addition
-        self.journal_entries = set()
+        self.journal_entries:set[JournalEntry] = set()
 
         # TODO no logic around initial balanaces yet
         self.initial_balance = initial_balance
@@ -417,6 +420,25 @@ class Account:
             return debits - credits
         else:
             raise TypeError('Invalid reporting format specified')
+        
+    @staticmethod
+    def get_net_transfer(debit_accounts:list[Account],
+                         credit_accounts:list[Account]):
+        '''
+        Get the net flow of capital from the debit_accounts group to the
+        credit_accounts group, reporting in terms of net credit or debit flow.
+        '''
+        net_transfer = 0
+
+        for account in credit_accounts:
+            for entry in account.journal_entries:
+                if entry.acc_debit in debit_accounts:
+                    net_transfer += entry.amount
+                elif entry.acc_credit in debit_accounts:
+                    net_transfer -= entry.amount
+
+        return net_transfer
+
 
 
     def print_t_account(self):
