@@ -1,9 +1,15 @@
 '''
 '''
+from __future__ import annotations
+
+# "Circular" imports only for type annotations
+from typing import TYPE_CHECKING
+if TYPE_CHECKING:
+    from pybooks.account import Account
+
 from collections import defaultdict
 from datetime import datetime
 
-from pybooks.account import Account
 from pybooks.util import parse_date
 
 class Journal:
@@ -208,3 +214,6 @@ class JournalEntry:
 
         acc_credit.add_journal_entry(self)
         acc_debit.add_journal_entry(self)
+    
+    def __repr__(self):
+        return f'Journal Entry: {self.acc_debit} -> {self.acc_credit} for {self.amount}'
