@@ -345,6 +345,7 @@ class Account:
         '''
         Create an account from a template
         '''
+        raise NotImplementedError()
 
     def __str__(self):
         return self.name
@@ -358,6 +359,9 @@ class Account:
         
         return (self.name == other.name and self.number == other.number
                 and self.account_type == other.account_type)
+
+    def __getitem__(self, key):
+        return self._account_number[key]
 
     def __hash__(self):
         '''

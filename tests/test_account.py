@@ -132,7 +132,7 @@ def test_account_number_from_template():
     sections, I have added an API to create an account number from named
     values for each of the segments of an account number, additionally
     including default
-    '''
+    
     template = init_template()
 
     acc = Account.from_template(template, AccountType.CREDIT, {
@@ -145,6 +145,7 @@ def test_account_number_from_template():
         'DNE': 'sdfdsfsf',
         'Account Code': '100'
     })
+    '''
 
 def test_account_number():
     '''
@@ -261,6 +262,9 @@ def test_account():
     # Create an account with an invalid accountType
     with pytest.raises(ValueError):
         Account('test', '01-01-100', 'invalid', template=template)
+
+    # Getitem should automatically return the account number's value
+    assert acc1['Company Code'] == '01' 
 
     
 def test_account_aggregation():
