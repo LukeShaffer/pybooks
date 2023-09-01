@@ -182,6 +182,7 @@ def test_get_account():
         gen.add_account(acc)
     
     assert gen.filter_accounts(account_code=500) == [acc4]
+    # The returned value must be a single account, not an iterable
     assert gen.get_account(account_code='500') == acc4
     assert gen.get_account(account_code=500) == acc4
 
