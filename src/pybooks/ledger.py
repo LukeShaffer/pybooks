@@ -73,7 +73,10 @@ class _Ledger:
 
         flag = re.IGNORECASE
         # Convert to Boolean for debug statements
-        return bool(re.match(f"^{acc_key.replace(' ', '_')}$", user_key, flag))
+        keys_match = bool(re.match(f"^{acc_key.replace(' ', '_')}$", user_key,
+                                   flag))
+        # print(f'Comparing acc_key {acc_key} and user_key {user_key}...{keys_match}')
+        return keys_match
 
     def _term_matches_filter(self, account_val, user_key, user_val,
                              fuzzy_match=True):
@@ -92,19 +95,23 @@ class _Ledger:
             raise ValueError('User specified a nonexistant filter '
                                 f'operation: {user_filter}')
         
+        # print(type(user_key), user_val)
+        # print(type(account_val), account_val)
+        # print(user_val == account_val)
+        
         # Save space
         re_flag = re.IGNORECASE
         if user_filter == 'eq':
             # fuzzy_match means ignore case and type differences
             if fuzzy_match:
-                if re.match(f'^{user_val}$', account_val, re_flag):
+                if re.match(f'^{user_val}$', str(account_val), re_flag):
                     return True
             elif account_val == user_val:
                 return True
         # The value must be an iterable
         elif user_filter == 'in':
             for val in user_val:
-                if fuzzy_match and re.match(f'^{val}$', account_val, re_flag):
+                if fuzzy_match and re.match(f'^{val}$', str(account_val), re_flag):
                     return True
                 elif val == account_val:
                     return True
@@ -149,7 +156,9 @@ class _Ledger:
             # Keep track of AND or OR behavior
             num_user_keys_matched = 0
 
+            print('searching new account...')
             for user_key, user_value in kwargs.items():
+                print(f'\tcomparing user key: {user_key} ({user_value})')
                 for acc_key, acc_value in search_dict.items():
                     # Goahead to compare key values
                     if self._keys_match(acc_key, user_key):
@@ -157,7 +166,8 @@ class _Ledger:
                         term_matches_filter = self._term_matches_filter(
                             acc_value, user_key, user_value, fuzzy_match
                         )
-                        
+                        print(f'\t\t...to acc key {acc_key} ({acc_value})...', end='')
+                        print(term_matches_filter)
                         if term_matches_filter:
                             num_user_keys_matched += 1
                             # OR short-circuit
