@@ -4,7 +4,10 @@ to encapsulate the various accounts tied together in the overall ledger.
 
 Also contains helper methods to print and export the ledger as well.
 '''
+from __future__ import annotations # list type annotations
+
 import re
+from typing import Union  # Multiple type annotation
 
 from pybooks.util import DuplicateException
 from pybooks.enums import AccountingMethods, AccountType
@@ -47,7 +50,7 @@ class _Ledger:
         raise NotImplementedError()
 
 
-    def add_account(self, account:Account|str, number:str=None,
+    def add_account(self, account:Union[Account,str], number:str=None,
                     account_type:AccountType=None):
         '''
         Add a new account to this ledger, either as a pre-existing Account
