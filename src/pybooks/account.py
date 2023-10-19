@@ -246,6 +246,9 @@ class _AccountNumber:
     '''
 
     def __init__(self, number: str, template: AccountNumberTemplate):
+        if number is None:
+            raise TypeError('Error Initializing - account number is None')
+
         if template.validate_account_number(number) is False:
             raise InvalidAccountNumberException(
                 f'{number} does not match the given template')
