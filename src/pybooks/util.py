@@ -1,4 +1,6 @@
 from datetime import datetime
+import math
+from typing import Union
 
 class DuplicateException(Exception):
     pass
@@ -19,6 +21,69 @@ class NullAccountTemplateError(Exception):
     number template.
     '''
     pass
+
+def truncate(num:Union[int, float], decimals:int):
+    '''
+    Truncates a decimal number to a certain length of decimal places
+    '''
+    # Short-circuit check
+    if decimals == 0:
+        return int(num)
+    
+    dec_place = str(num).find('.')
+
+    # No decimals, nothing to round
+    if dec_place == -1:
+        return num
+    
+    # Python lets you over-extend slicing ranges on strings
+    # Need to add the extra 1 since the end index is non-inclusive
+    return float(str(num)[0:dec_place+decimals+1])    
+
+def normal_round(num:Union[int,float], decimals:int):
+    '''
+    Perform a normal schoolyard rounding operation, rounding up to the next
+    place on 5's
+    '''
+    whole_num = ''
+    dec = ''
+
+    seen_dec = False
+    dec_place = 0
+
+    for char in str(num):
+        if char == '.':
+            seen_dec = True
+            continue
+        if not seen_dec:
+            whole_num += char
+            continue
+        dec += char
+        dec_place += 1
+
+        if dec_place == decimals + 1:
+            break
+    
+    # Round up
+    if int(dec[-1]) >= 5:
+        # Need special logic here in case of whole number rounding
+        if decimals == 0:
+            return math.ceil(num)
+        dec = f'{dec[0:-2]}{int(dec[-2]) + 1}0'
+    # Round down
+    else:
+        if decimals == 0:
+            return math.floor(num)
+        dec = dec[:-1]
+
+
+    return float(f'{whole_num}.{dec}')
+
+
+
+    
+    
+
 
 def parse_date(date, user_format=None):
     '''
@@ -67,7 +132,7 @@ def parse_date(date, user_format=None):
 
 
     has_time = ':' in date
-    print(date)
+    # print(date)
     for form in DATE_FORMATS:
         if not has_time:
             for built_form in date_builder(form):

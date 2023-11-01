@@ -2,7 +2,7 @@ from datetime import datetime
 
 import pytest
 
-from pybooks.util import parse_date
+from pybooks.util import parse_date, truncate, normal_round
 
 # Taking this out for now, good attempt, but I don't know if this belongs here
 
@@ -28,3 +28,23 @@ def test_parse_date():
     )
     for date in valid_dates:
         assert parse_date(date) == test_date
+
+def test_truncate():
+    assert truncate(23.9, 0) == 23
+    assert truncate(23.5, 0) == 23
+    assert truncate(23.2, 0) == 23
+
+    assert truncate(23.564, 2) == 23.56
+
+def test_normal_round():
+    assert normal_round(23.6, 0) == 24
+    assert normal_round(23.5, 0) == 24
+    assert normal_round(23.4, 0) == 23
+
+    assert normal_round(23.48, 1) == 23.5
+    assert normal_round(23.45, 1) == 23.5
+    assert normal_round(23.43, 1) == 23.4
+
+    assert normal_round(23.457, 2) == 23.46
+    assert normal_round(23.455, 2) == 23.46
+    assert normal_round(23.451, 2) == 23.45
