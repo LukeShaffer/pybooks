@@ -2,6 +2,7 @@
 '''
 from __future__ import annotations
 
+import math
 # "Circular" imports only for type annotations
 from typing import TYPE_CHECKING
 if TYPE_CHECKING:
@@ -10,7 +11,7 @@ if TYPE_CHECKING:
 from collections import defaultdict
 from datetime import datetime
 
-from pybooks.util import parse_date
+from pybooks.util import parse_date, normal_round, truncate
 
 class Journal:
     def __init__(self, currency_symbol='$'):
@@ -187,8 +188,6 @@ class Journal:
         for account in (entry.acc_credit, entry.acc_debit):
             self.add_account(account)
 
-
-
 class JournalEntry:
     '''
     Each individual journal entry in the journal will be its own instance.
@@ -214,6 +213,188 @@ class JournalEntry:
 
         acc_credit.add_journal_entry(self)
         acc_debit.add_journal_entry(self)
-    
+
+
     def __repr__(self):
-        return f'Journal Entry: {self.acc_debit} -> {self.acc_credit} for {self.amount}'
+        return f'Journal Entry: {self.acc_debit} <- {self.acc_credit} for {self.amount}'
+
+
+def split_wages(gross_wages, rules, date=datetime.now()):
+    '''
+    Given a gross wage amount and a set of rules with which to split them,
+    return a series of journal entries that represent all of the splits and
+    deductions from your gross wages.
+
+    See examples.py for an example ruleset to feed this function.
+
+    Example.
+    
+    You have a $100 paycheck.
+    You have the following pre-tax deductions:
+        $10 medical insurance
+        $20 retirement account contribution
+    You pay the following taxes:
+        10% federal income tax
+        3% state income tax
+    You have the following post-tax deductions:
+        5% 2nd retirement account
+
+    This function will do the operations in order and return a list of
+    JournalEntry's that represent the splitting of your paycheck.
+    '''
+    def parse_split_str(split_str):
+        '''
+        Parse numbers or percentages and return a decimal variable.
+
+        Returns a 2-tuple (is_percentage, value)
+            where is_percentage is a boolean
+            and value is the float value of the input
+        '''
+        try:
+            return (False, float(split_str))
+        except ValueError as e:
+            if split_str.strip()[-1] == '%':
+                return (True, float(split_str.strip()[:-1]) / 100)
+            else:
+                raise ValueError(f'Unparseable split_str "{split_str}"')
+
+    def split_wage(starting_wage, split_str, round_method):
+        '''
+        Do logic to determine the split of the starting wage with either
+        flat amounts or percentages.
+
+        pass round_method = None to skip rounding
+
+        Returns either split_str as a float or if split_str ends with a
+        '%', returns that percentage of the starting_wage
+        '''
+        is_percentage, split_str = parse_split_str(split_str)
+        if is_percentage:
+            split_str = starting_wage * split_str
+        
+        if round_method == 'Normal':
+            split_str = normal_round(split_str, 2)
+        elif round_method == 'Truncate':
+            split_str = truncate(split_str, 2)
+        elif round_method == 'Banker':
+            # The default Python round() function is a banker's round
+            # implementation
+            split_str = round(split_str, 2)
+        elif round_method is None:
+            pass
+        else:
+            raise ValueError('Invalid round_method specified')
+        
+        return split_str
+
+    to_return = []
+
+    # Set up global rounding constants and behavior
+    global_round = rules.get('round', False)
+    global_round_method = rules.get('round_method', "Banker")
+
+    to_return.append(JournalEntry(date=date, acc_credit=rules['acc_credit'],
+                                  acc_debit=rules['acc_debit'],
+                                  amount=gross_wages, memo=rules['memo']))
+    
+    # These could be flat amounts or percentages in the case of bonuses
+    additional_wage_total = 0
+    for additional_wage in rules['ADDITIONAL_WAGES']:
+        # Check any rounding overrides for this step
+        step_round = additional_wage.get('round', global_round)
+
+        if step_round:
+            step_round_method = additional_wage.get('round_method',
+                                                    global_round_method)
+        else:
+            step_round_method = None
+        step_wage = split_wage(starting_wage=gross_wages,
+                               split_str=additional_wage['amount'],
+                               round_method=step_round_method)
+        additional_wage_total += step_wage
+        to_return.append(
+            JournalEntry(date=date, acc_credit=additional_wage['acc_credit'],
+                         acc_debit=additional_wage['acc_debit'],
+                         amount=step_wage, memo=additional_wage['memo']))
+        
+    # Add vacation and bonus credit to the total wages being calculated
+    gross_wages += additional_wage_total
+
+    pre_tax_ded_total = 0
+    for deduction in rules['PRE_TAX_DEDUCTIONS']:
+        step_round = deduction.get('round', global_round)
+        if step_round:
+            step_round_method = deduction.get('round_method',
+                                              global_round_method)
+        else:
+            step_round_method = None
+        step_wage = split_wage(starting_wage=gross_wages,
+                               split_str=deduction['amount'],
+                               round_method=step_round_method)
+
+        pre_tax_ded_total += step_wage
+        to_return.append(
+            JournalEntry(date=date, acc_credit=deduction['acc_credit'],
+                         acc_debit=deduction['acc_debit'], amount=step_wage))
+        
+
+    if pre_tax_ded_total > gross_wages:
+        raise ValueError('Pre Tax Deductions are larger than gross wages')
+
+
+    tax_total = 0
+    for tax in rules['TAXES']:
+        step_round = tax.get('round', global_round)
+        if step_round:
+            step_round_method = tax.get('round_method', global_round_method)
+        else:
+            step_round_method = None
+        
+        step_wage = split_wage(starting_wage=gross_wages - pre_tax_ded_total,
+                               split_str=tax['amount'],
+                               round_method=step_round_method)
+
+        tax_total += step_wage
+        to_return.append(
+            JournalEntry(date=date, acc_credit=tax['acc_credit'],
+                         acc_debit=tax['acc_debit'], amount=step_wage)
+        )
+
+    if tax_total > gross_wages or tax_total + pre_tax_ded_total > gross_wages:
+        raise ValueError('Taxes have pushed gross wages negative')
+
+    post_tax_ded_total = 0
+    for deduction in rules['POST_TAX_DEDUCTIONS']:
+        step_round = deduction.get('round', global_round)
+        if step_round:
+            step_round_method = deduction.get('round_method',
+                                              global_round_method)
+        else:
+            step_round_method = None
+        step_wage = \
+            split_wage(starting_wage=gross_wages-pre_tax_ded_total-tax_total,
+                       split_str=deduction['amount'],
+                       round_method=step_round_method)
+        post_tax_ded_total += step_wage
+
+        to_return.append(
+            JournalEntry(date=date, acc_credit=deduction['acc_credit'],
+                         acc_debit=deduction['acc_debit'], amount=step_wage)
+        )
+    
+    
+    if post_tax_ded_total > gross_wages \
+            or post_tax_ded_total + tax_total + pre_tax_ded_total > gross_wages:
+        raise ValueError('Post Tax deductions have pushed gross wages negative')
+    
+    """
+    print('=====================')
+    print(gross_wages)
+    print(pre_tax_ded_total)
+    print(tax_total)
+    print(post_tax_ded_total)
+    print('=====================')
+    """
+
+    return to_return
+

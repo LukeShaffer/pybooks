@@ -35,6 +35,7 @@ def test_truncate():
     assert truncate(23.2, 0) == 23
 
     assert truncate(23.564, 2) == 23.56
+    assert truncate(23.549, 2) == 23.54
 
 def test_normal_round():
     assert normal_round(23.6, 0) == 24
