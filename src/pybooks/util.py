@@ -79,7 +79,40 @@ def normal_round(num:Union[int,float], decimals:int):
 
     return float(f'{whole_num}.{dec}')
 
+def calculate_income_tax(taxable_income:Union[int, float], tax_brackets:list):
+    '''
+    Method to dynamically calculate the amount of money that a certain income
+    would owe in income taxes using the given (progressive) tax brackets.
 
+    tax_bracket format is the following:
+
+    a list of 2-tuples: the tax rate and the maximum income of the row 
+    use 'inf' for the top un-capped tax bracket
+    [
+        (0.05, 999),
+        (0.15, 1500)
+    ]
+    '''
+    to_return = 0
+    prev_max = 0
+    for bracket in tax_brackets:
+        rate, max_income = bracket
+        max_income = float(max_income)
+        if max_income <= prev_max:
+            raise SyntaxError('There is an error with the supplied tax brackets')
+
+        if taxable_income > max_income:
+            to_return += rate * (max_income - prev_max)
+            prev_max = max_income
+            continue
+        elif taxable_income <= max_income:
+            to_return += rate * (taxable_income - prev_max)
+            return to_return
+        
+    
+    raise ValueError('Income beyond last defined tax bracket detected')
+
+        
 
     
     
