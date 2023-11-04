@@ -159,9 +159,9 @@ class _Ledger:
             # Keep track of AND or OR behavior
             num_user_keys_matched = 0
 
-            print('searching new account...')
+            # print('searching new account...')
             for user_key, user_value in kwargs.items():
-                print(f'\tcomparing user key: {user_key} ({user_value})')
+                # print(f'\tcomparing user key: {user_key} ({user_value})')
                 for acc_key, acc_value in search_dict.items():
                     # Goahead to compare key values
                     if self._keys_match(acc_key, user_key):
@@ -169,8 +169,8 @@ class _Ledger:
                         term_matches_filter = self._term_matches_filter(
                             acc_value, user_key, user_value, fuzzy_match
                         )
-                        print(f'\t\t...to acc key {acc_key} ({acc_value})...', end='')
-                        print(term_matches_filter)
+                        # print(f'\t\t...to acc key {acc_key} ({acc_value})...', end='')
+                        # print(term_matches_filter)
                         if term_matches_filter:
                             num_user_keys_matched += 1
                             # OR short-circuit
@@ -201,7 +201,7 @@ class _Ledger:
             return None
         return result[0]
 
-    def get_net_balance(self, reporting_format, match_all=True,
+    def get_net_balance(self, reporting_format, accounts=[], match_all=True,
                         fuzzy_match=True, **kwargs)->int:
         '''
         A function to aggregate the net balances for any subset of the
@@ -222,7 +222,8 @@ class _Ledger:
         reporting_format is either one of "AccountType.CREDIT" or
             "AccountType.DEBIT"
         '''
-        accounts = self.filter_accounts(match_all, fuzzy_match, **kwargs)
+        if not accounts:
+            accounts = self.filter_accounts(match_all, fuzzy_match, **kwargs)
         
         # This could either be 0 or raise an error.  I'll just return 0 for now
         if not accounts:

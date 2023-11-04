@@ -270,6 +270,10 @@ def test_get_net_balance():
                                  reporting_format=AccountType.CREDIT)
     assert result == 15000
     
+    # Directly supplying the accounts should function the same
+    result = gen.get_net_balance(accounts=[acc2, acc4],
+                                 reporting_format=AccountType.DEBIT)
+    assert result == -15000
 
 
 def test_compare_chart_of_accounts():
