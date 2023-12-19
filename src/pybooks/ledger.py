@@ -211,7 +211,7 @@ class _Ledger:
         their credits and debits and report the final amount in terms of
         net credits or debits
 
-        The reporting format controls which side of the balance sheet will be
+        The reporting_format controls which side of the balance sheet will be
         considered the positive one in terms of the net balance.
 
         For example, if someone owes $100,000 and owns $100, the net balance
