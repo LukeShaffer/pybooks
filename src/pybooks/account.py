@@ -4,9 +4,11 @@ Provides functionality for accounting Accounts
 from __future__ import annotations
 
 import re
+from datetime import datetime
 from collections import OrderedDict
-from pybooks.journal import JournalEntry
 
+
+from pybooks.journal import JournalEntry
 from pybooks.util import InvalidAccountNumberException, DuplicateException
 from pybooks.enums import AccountType
 
@@ -214,7 +216,9 @@ class AccountNumberTemplate:
         number.
 
         For example, assume we have an account number template
+        TODO
         '''
+        pass
 
     def show_template(self):
         '''
@@ -430,19 +434,22 @@ class Account:
         
     @staticmethod
     def get_net_transfer(debit_accounts:list[Account],
-                         credit_accounts:list[Account]):
+                         credit_accounts:list[Account],
+                         start_date=datetime.min, end_date=datetime.max):
         '''
         Get the net flow of capital from the debit_accounts group to the
         credit_accounts group, reporting in terms of net credit or debit flow.
         '''
+
         net_transfer = 0
 
         for account in credit_accounts:
             for entry in account.journal_entries:
-                if entry.acc_debit in debit_accounts:
-                    net_transfer += entry.amount
-                elif entry.acc_credit in debit_accounts:
-                    net_transfer -= entry.amount
+                if start_date <= entry.date <= end_date: 
+                    if entry.acc_debit in debit_accounts:
+                        net_transfer += entry.amount
+                    elif entry.acc_credit in debit_accounts:
+                        net_transfer -= entry.amount
 
         return net_transfer
 
