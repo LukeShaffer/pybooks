@@ -147,6 +147,17 @@ def test_account_number_from_template():
     })
     '''
 
+    rules = {
+        'Company Code': '01',
+        'Department Code': '01',
+        'Account Code': '100'
+    }
+    template = init_template()
+    acc_num = template.make_account_number(**rules)
+
+    # assert acc_num.company_code == '01'
+    # assert acc_num.department_code == '01'
+
 def test_account_number():
     '''
     Test various functionality of the _AccountNumber class
@@ -337,4 +348,42 @@ def test_get_net_transfer():
         JournalEntry(datetime.now(), new_acc,
                      credit_accounts[x%len(credit_accounts)], 100)
     assert Account.get_net_transfer(debit_accounts, credit_accounts) == 200
+
+
+    # Test that adding start and end dates functions properly.
+    acc1 = Account('a', '01-02-100', AccountType.CREDIT, template=template)
+    acc2 = Account('b', '01-02-101', AccountType.DEBIT, template=template)
+
+    # Add one transaction a year ago and one from 10 years ago
+    now = datetime.now()
+    one_year_ago = datetime(now.year-1 , now.month, now.day)
+    ten_years_ago = datetime(now.year-10 , now.month, now.day)
+    JournalEntry(date=one_year_ago, acc_credit=acc1, acc_debit=acc2,
+                 amount=1000)
+    JournalEntry(date=ten_years_ago, acc_credit=acc1, acc_debit=acc2,
+                 amount=2000)
+    
+    assert Account.get_net_transfer(debit_accounts=[acc2],
+                                    credit_accounts=[acc1]) == 3000
+    
+    assert Account.get_net_transfer(debit_accounts=[acc2],
+                                    credit_accounts=[acc1],
+                                    start_date=one_year_ago) == 1000
+    
+    assert Account.get_net_transfer(debit_accounts=[acc2],
+                                    credit_accounts=[acc1],
+                                    start_date=datetime(now.year-3, now.month, now.day)) == 1000
+    
+    assert Account.get_net_transfer(debit_accounts=[acc2],
+                                    credit_accounts=[acc1],
+                                    start_date=datetime(now.year-11, now.month, now.day),
+                                    end_date=datetime(now.year-5, now.month, now.day)) == 2000
+    
+    assert Account.get_net_transfer(debit_accounts=[acc2],
+                                    credit_accounts=[acc1],
+                                    end_date=datetime(now.year-5, now.month, now.day)) == 2000
+    
+    assert Account.get_net_transfer(debit_accounts=[acc2],
+                                    credit_accounts=[acc1],
+                                    start_date=now) == 0
 
