@@ -331,7 +331,7 @@ class Account:
         # Either a credit or a debit
         if account_type is None or not isinstance(account_type, AccountType):
             raise ValueError('Trying to create a new account with an invalid '
-                             'type')
+                             'Account type (must be Credit or Debit)')
         self.account_type = account_type
 
         # A set of JournalEntry instances added to whenever this account is
