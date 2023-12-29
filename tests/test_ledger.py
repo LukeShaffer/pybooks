@@ -160,6 +160,55 @@ def test_filter_account__in():
     results = gen.filter_accounts(department_code__in=['01', '00'])
     assert results == [acc2, acc3, acc4]
 
+
+def test_filter_account__lt_lte():
+    template = init_template()
+    gen = GeneralLedger('general ledger', template)
+
+    acc1 = Account('account 1', '10-02-200',  AccountType.DEBIT,
+                   template=template)
+    acc2 = Account('account 2', '10-00-300', AccountType.CREDIT,
+                   template=template)
+    acc3 = Account('account 3', '01-00-300', AccountType.DEBIT,
+                   template=template)
+    acc4 = Account('account 4', '11-01-500', AccountType.CREDIT,
+                   template=template)
+
+    for acc in (acc1, acc2, acc3, acc4):
+        gen.add_account(acc)
+    
+    results = gen.filter_accounts(company_code__lt=11)
+    assert results == [acc1, acc2, acc3]
+
+    assert gen.filter_accounts(company_code__lt=11) \
+        == gen.filter_accounts(company_code__lt='11')
+    
+    assert gen.filter_accounts(company_code__lte=1) == [acc3]
+
+def test_filter_account__gt_gte():
+    template = init_template()
+    gen = GeneralLedger('general ledger', template)
+
+    acc1 = Account('account 1', '10-02-200',  AccountType.DEBIT,
+                   template=template)
+    acc2 = Account('account 2', '10-00-300', AccountType.CREDIT,
+                   template=template)
+    acc3 = Account('account 3', '01-00-300', AccountType.DEBIT,
+                   template=template)
+    acc4 = Account('account 4', '11-01-500', AccountType.CREDIT,
+                   template=template)
+
+    for acc in (acc1, acc2, acc3, acc4):
+        gen.add_account(acc)
+    
+    results = gen.filter_accounts(company_code__gt=1)
+    assert results == [acc1, acc2, acc4]
+
+    assert gen.filter_accounts(company_code__gt=1) \
+        == gen.filter_accounts(company_code__gt='1')
+    
+    assert gen.filter_accounts(company_code__gte=1) == [acc1, acc2, acc3, acc4]
+
 def test_get_account():
     '''
     Make sure the API to get only a single account throws an error if more

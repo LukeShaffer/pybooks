@@ -17,7 +17,9 @@ from pybooks.account import ChartOfAccounts, Account, AccountNumberTemplate
 FILTER_TOKEN = '__'
 DEFINED_FILTERS = (
     'eq',
-    'in'
+    'in',
+    'lt', 'lte',
+    'gt', 'gte',
 )
 
 
@@ -102,7 +104,7 @@ class _Ledger:
         # print(type(account_val), account_val)
         # print(user_val == account_val)
         
-        # Save space
+        # Begin specifying any of the __dunder filters I will handle
         re_flag = re.IGNORECASE
         if user_filter == 'eq':
             # fuzzy_match means ignore case and type differences
@@ -118,6 +120,14 @@ class _Ledger:
                     return True
                 elif val == account_val:
                     return True
+        elif user_filter == 'lt':
+            return int(account_val) < int(user_val)
+        elif user_filter == 'lte':
+            return int(account_val) <= int(user_val)
+        elif user_filter == 'gt':
+            return int(account_val) > int(user_val)
+        elif user_filter == 'gte':
+            return int(account_val) >= int(user_val)
         
         # Default return False
         return False
