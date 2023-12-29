@@ -435,17 +435,24 @@ class Account:
     @staticmethod
     def get_net_transfer(debit_accounts:list[Account],
                          credit_accounts:list[Account],
-                         start_date=datetime.min, end_date=datetime.max):
+                         start_date=datetime.min, end_date=datetime.max,
+                         memo:re.Pattern=re.compile('.*')):
         '''
         Get the net flow of capital from the debit_accounts group to the
         credit_accounts group, reporting in terms of net credit or debit flow.
+
+        Now with an option to match transactions whose memos match a certain
+        pattern.
         '''
 
         net_transfer = 0
 
         for account in credit_accounts:
             for entry in account.journal_entries:
-                if start_date <= entry.date <= end_date: 
+                if start_date <= entry.date <= end_date:
+                    # search vs match - want a match anywhere in the string
+                    if not memo.search(entry.memo):
+                        continue
                     if entry.acc_debit in debit_accounts:
                         net_transfer += entry.amount
                     elif entry.acc_credit in debit_accounts:

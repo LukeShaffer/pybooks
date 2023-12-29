@@ -386,4 +386,16 @@ def test_get_net_transfer():
     assert Account.get_net_transfer(debit_accounts=[acc2],
                                     credit_accounts=[acc1],
                                     start_date=now) == 0
+    
+    # Test that we are able to filter based on memos
+    JournalEntry(datetime.now(), acc_debit=acc1, acc_credit=acc2, amount=100,
+                 memo='Interest payment')
+
+    assert Account.get_net_transfer(debit_accounts=[acc1],
+                                    credit_accounts=[acc2],
+                                    memo=re.compile('')) == -2900
+    
+    assert Account.get_net_transfer(debit_accounts=[acc1],
+                                    credit_accounts=[acc2],
+                                    memo=re.compile('Interest')) == 100
 
