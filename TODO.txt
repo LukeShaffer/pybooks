@@ -1,0 +1,5 @@
+Creating AccountNumberSegment's with default values
+    8/20/23 - temporarily shelving this
+
+Create some kind of add-on to track financial assest with things like
+short/long term gains, cost basis and dividends
