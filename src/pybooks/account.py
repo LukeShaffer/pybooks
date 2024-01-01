@@ -391,7 +391,7 @@ class Account:
             self.gross_debit += journal_entry.amount
         elif self == journal_entry.acc_credit:
             self.gross_credit += journal_entry.amount
-        
+
     @property
     def net_balance(self):
         '''
