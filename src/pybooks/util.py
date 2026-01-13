@@ -79,19 +79,24 @@ def normal_round(num:Union[int,float], decimals:int):
 
     return float(f'{whole_num}.{dec}')
 
-def calculate_income_tax(taxable_income:Union[int, float], tax_brackets:list):
+def calculate_progressive_tax(taxable_income:Union[int, float], tax_brackets:list):
     '''
     Method to dynamically calculate the amount of money that a certain income
-    would owe in income taxes using the given (progressive) tax brackets.
+    would owe in taxes using the given (progressive) tax brackets.
 
     tax_bracket format is the following:
 
-    a list of 2-tuples: the tax rate and the maximum income of the row 
-    use 'inf' for the top un-capped tax bracket
+    ```
+    * a list of 2-tuples: the tax rate and the maximum income of the row /
+    bracket.
+    * Must be specified in ascending order.
+    * Use 'inf' for the top un-capped tax bracket:
     [
         (0.05, 999),
-        (0.15, 1500)
+        (0.15, 1500),
+        (0.30, 'inf')
     ]
+    ```
     '''
     to_return = 0
     prev_max = 0
