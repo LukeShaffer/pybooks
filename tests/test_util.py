@@ -3,7 +3,7 @@ from datetime import datetime
 import pytest
 
 from pybooks.util import parse_date, truncate, normal_round,\
-    calculate_income_tax
+    calculate_progressive_tax
 
 # Taking this out for now, good attempt, but I don't know if this belongs here
 
@@ -58,22 +58,22 @@ def test_calculate_income_tax():
         (0.02, 200),
     ]
 
-    assert calculate_income_tax(50, tax_brackets) == 0.50
-    assert calculate_income_tax(150, tax_brackets) == 1 + 0.02 * 50
-    assert calculate_income_tax(200, tax_brackets) == 3
+    assert calculate_progressive_tax(50, tax_brackets) == 0.50
+    assert calculate_progressive_tax(150, tax_brackets) == 1 + 0.02 * 50
+    assert calculate_progressive_tax(200, tax_brackets) == 3
 
     # Fraction test
-    assert calculate_income_tax(100.50, tax_brackets) == 1 + 0.01
+    assert calculate_progressive_tax(100.50, tax_brackets) == 1 + 0.01
 
     with pytest.raises(ValueError):
-        calculate_income_tax(1000000, tax_brackets)
+        calculate_progressive_tax(1000000, tax_brackets)
     
     tax_brackets.append((0.5, 'inf'))
 
-    assert calculate_income_tax(1000, tax_brackets) == \
+    assert calculate_progressive_tax(1000, tax_brackets) == \
         3 + 0.5 * 800
     
-    assert calculate_income_tax(1_000_000, tax_brackets) == \
+    assert calculate_progressive_tax(1_000_000, tax_brackets) == \
         3 + 0.5 * (1_000_000 - 200)
 
     # Now testing with real us tax brackets ('23)
@@ -87,11 +87,11 @@ def test_calculate_income_tax():
         (0.37, 'inf')
     ]
 
-    assert calculate_income_tax(15_000, tax_brackets) == 1100 + 0.12 * 4_000
-    assert calculate_income_tax(50_000, tax_brackets) == \
+    assert calculate_progressive_tax(15_000, tax_brackets) == 1100 + 0.12 * 4_000
+    assert calculate_progressive_tax(50_000, tax_brackets) == \
         1100 + 4047 + 0.22 * (50_000 - 44_725)
     
-    assert calculate_income_tax(1_000_000, tax_brackets) == \
+    assert calculate_progressive_tax(1_000_000, tax_brackets) == \
         174_238.25 + 0.37 * (1_000_000 - 578_125)
 
 
