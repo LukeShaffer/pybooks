@@ -205,7 +205,7 @@ class AccountNumberTemplate:
             continue
         return True
     
-    def make_account_number(self, **kwargs):
+    def make_account_number(self, **kwargs) -> _AccountNumber:
         '''
         In order to facilitate larger account numbers, I have seen fit to
         expand the account number template functionality to be able to create
@@ -215,10 +215,40 @@ class AccountNumberTemplate:
         from the named meanings of each of the named segments of the account
         number.
 
-        For example, assume we have an account number template
+        For example, assume we have an account number template something of the
+        form:
+        ```
+        rules = {
+            'Company Code': '01',
+            'Department Code': '01',
+            'Account Code': '100'
+        }
+        ```
+
+        If we want to dynamically create an account number using the above
+        values, we can have `rules` be the kwargs passed in to the function
+        so that the account number creation is self-documenting.
         TODO
         '''
-        pass
+        number = ''
+        # First translate the kwargs into their segments and check if exist
+        for arg in kwargs:
+            if arg not in self.segments:
+                raise ValueError(f'Input segment name "{arg}" DNE in template')
+            
+        for segment_name in self.segments:
+            if segment_name not in kwargs:
+                error_msg = (f'Input account details did not include\
+                              mandatory segment f{segment_name}')
+                raise ValueError(error_msg)
+            number += kwargs[segment_name]
+            number += self.separator
+
+        if number.endswith(self.separator):
+            number.rstrip(self.separator)
+
+        return _AccountNumber(number, self)
+        raise NotImplementedError()
 
     def show_template(self):
         '''
@@ -263,6 +293,10 @@ class _AccountNumber:
         values = number.split(template.separator)
         for seg_name, value in zip(template.segments, values):
             self._dict[seg_name] = value
+
+            # Add property access for all segments
+            attr_name = seg_name.lower().replace(' ', '_')
+            setattr(self, attr_name, value)
     
     @property
     def number(self):

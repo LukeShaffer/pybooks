@@ -87,6 +87,21 @@ def test_account_number_segments():
     with pytest.raises(InvalidAccountNumberException):
         AccountNumberSegment('test', regex, is_regex=True)
 
+def test_account_number_auto_segments():
+    '''
+    1/13/2026 In order to support dynamic account creation (ie, creating a
+    credit account for a person's wages per employer / bank / etc) I am
+    creating a new AccountSegment behavior that auto-increments.
+
+    That being said - the segment itself will just annotate that it is
+    "auto-able" and it is up to the chart of accounts that contains it to
+    iterate through and find the next valid value.
+
+    This will save a lot of time and space from needing to create new Enums for
+    every little thing. 
+    '''
+
+
 def test_account_number_template():
     template = init_template()
 
@@ -146,17 +161,35 @@ def test_account_number_from_template():
         'Account Code': '100'
     })
     '''
+    template = init_template()
 
+
+    with pytest.raises(ValueError):
+        error_rules = {
+            'Non-Existant-Segment': '01'
+        }
+        acc_num = template.make_account_number(**error_rules)
+
+    # Does not contain details for the other mandatory segments
+    with pytest.raises(ValueError):
+        error_rules = {
+            'Company Code': '01'
+        }
+        acc_num = template.make_account_number(**error_rules)
+
+    # Now test good rules
     rules = {
         'Company Code': '01',
         'Department Code': '01',
         'Account Code': '100'
     }
-    template = init_template()
+    
     acc_num = template.make_account_number(**rules)
 
-    # assert acc_num.company_code == '01'
-    # assert acc_num.department_code == '01'
+    assert acc_num.company_code == '01'
+    assert acc_num.department_code == '01'
+
+    
 
 def test_account_number():
     '''
