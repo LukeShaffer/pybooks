@@ -119,7 +119,7 @@ class AccountNumberTemplate:
             AccountNumberSegment(
                 [f'{_:03}' for _ in range(100, 200)], flat_value='Assets'),
             AccountNumberSegment(
-                [f'{_:03}' for _ in range(200, 300)],flat_value='Liabilities'),
+                [f'{_:03}' for _ in range(200, 300)], flat_value='Liabilities'),
             AccountNumberSegment(
                 [f'{_:03}' for _ in range(300, 400)], flat_value='Equity'),
             AccountNumberSegment(
