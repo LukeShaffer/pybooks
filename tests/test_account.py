@@ -140,7 +140,7 @@ def test_show_account_template():
 
     assert template._show_form() == 'XX-XX-XXX'
 
-def test_account_number_from_template():
+def test_account_from_template():
     '''
     8/20/23 I am shelving the idea of default segments
     In order to facilitate creating larger account numbers with default
@@ -168,14 +168,24 @@ def test_account_number_from_template():
         error_rules = {
             'Non-Existant-Segment': '01'
         }
-        acc_num = template.make_account_number(**error_rules)
+        acc_num = template._make_account_number(**error_rules)
 
     # Does not contain details for the other mandatory segments
     with pytest.raises(ValueError):
         error_rules = {
             'Company Code': '01'
         }
-        acc_num = template.make_account_number(**error_rules)
+        acc_num = template._make_account_number(**error_rules)
+
+
+    # Contains an invalid value for one of the segments
+    with pytest.raises(InvalidAccountNumberException):
+        error_rules = {
+            'Company Code': '100',
+            'Department Code': '01',
+            'Account Code': '100'
+        }
+        acc_num = template._make_account_number(**error_rules)
 
     # Now test good rules
     rules = {
@@ -184,12 +194,18 @@ def test_account_number_from_template():
         'Account Code': '100'
     }
     
-    acc_num = template.make_account_number(**rules)
+    acc_num = template._make_account_number(**rules)
 
     assert acc_num.company_code == '01'
     assert acc_num.department_code == '01'
     assert acc_num.account_code == '100'
 
+    # Now test creating the whole account
+    acc = template.make_account(name='test account',
+                                account_type=AccountType.CREDIT,
+                                initial_balance=500, **rules)
+    assert acc.name == 'test account'
+    assert acc.net_balance == 500
     
 
 def test_account_number():

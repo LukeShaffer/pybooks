@@ -205,7 +205,7 @@ class AccountNumberTemplate:
             continue
         return True
     
-    def make_account_number(self, **kwargs) -> _AccountNumber:
+    def _make_account_number(self, **kwargs) -> _AccountNumber:
         '''
         In order to facilitate larger account numbers, I have seen fit to
         expand the account number template functionality to be able to create
@@ -245,10 +245,19 @@ class AccountNumberTemplate:
             number += self.separator
 
         if number.endswith(self.separator):
-            number.rstrip(self.separator)
+            number = number.rstrip(self.separator)
+        print(number, number.endswith(self.separator))
 
         return _AccountNumber(number, self)
-        raise NotImplementedError()
+    
+    def make_account(self, name:str, account_type:AccountType,
+                     initial_balance:int = 0, **kwargs) -> Account:
+        '''
+        Creates an account using a dictionary set of segment names and values
+        '''
+        acc_num = self._make_account_number(**kwargs)
+        return Account(name=name, number=acc_num, account_type=account_type,
+                       initial_balance=initial_balance)
 
     def show_template(self):
         '''
