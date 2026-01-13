@@ -188,6 +188,7 @@ def test_account_number_from_template():
 
     assert acc_num.company_code == '01'
     assert acc_num.department_code == '01'
+    assert acc_num.account_code == '100'
 
     
 
