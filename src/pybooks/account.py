@@ -23,11 +23,18 @@ class AccountNumberSegment:
     '''
 
     def __init__(self, name:str, meanings:dict[str|re.Pattern, str],
-                 is_regex=False):
+                 is_regex=False, incrementable=False):
         self.name = name
         self.meanings = meanings
         self.is_regex = is_regex
         self.length = None
+        # Whether this segment is unimportant / temp enough to warrant
+        # strict value mappings
+        self._incrementable = incrementable
+        # Sanity check - incrementable fields can only be dicts with one regex
+        # line to avoid a logic checking explosion
+        if incrementable:
+            assert is_regex and len(meanings) == 1
 
         # I am disallowing variable-length regexes to simplify validation
         regex_repetition_chars = '*+?'
@@ -144,6 +151,9 @@ class AccountNumberTemplate:
     def __init__(self, *args:AccountNumberSegment, separator='-'):
         self.segments:dict[str, AccountNumberSegment] = OrderedDict()
         self.separator = separator
+        # Sentinel value, we must assure that there is only 1 auto-incrementing
+        # segment per account number template
+        self._increment_segment = None
 
         for segment in args:
             if not isinstance(segment, AccountNumberSegment):
@@ -153,6 +163,13 @@ class AccountNumberTemplate:
             if segment.name in self.segments:
                 raise ValueError('Initializing AccountNumberTemplate with '
                                  f'duplicate segment name: {segment.name}')
+            if segment._incrementable:
+                if self._increment_segment is not None:
+                    error_msg = (f'Error, cannot create {self.__class__.__name__} '
+                                 'with more than one incrementing segment')
+                    raise ValueError(error_msg)
+                self._increment_segment = segment
+
             self.segments[segment.name] = segment
             
 
@@ -228,7 +245,6 @@ class AccountNumberTemplate:
         If we want to dynamically create an account number using the above
         values, we can have `rules` be the kwargs passed in to the function
         so that the account number creation is self-documenting.
-        TODO
         '''
         number = ''
         # First translate the kwargs into their segments and check if exist
@@ -238,15 +254,14 @@ class AccountNumberTemplate:
             
         for segment_name in self.segments:
             if segment_name not in kwargs:
-                error_msg = (f'Input account details did not include\
-                              mandatory segment f{segment_name}')
+                error_msg = (f'Input account details did not include'
+                              f'mandatory segment "{segment_name}"')
                 raise ValueError(error_msg)
             number += kwargs[segment_name]
             number += self.separator
 
         if number.endswith(self.separator):
             number = number.rstrip(self.separator)
-        print(number, number.endswith(self.separator))
 
         return _AccountNumber(number, self)
     

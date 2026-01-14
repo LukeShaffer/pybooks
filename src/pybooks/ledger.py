@@ -11,7 +11,8 @@ from typing import Union  # Multiple type annotation
 
 from pybooks.util import DuplicateException
 from pybooks.enums import AccountingMethods, AccountType
-from pybooks.account import ChartOfAccounts, Account, AccountNumberTemplate
+from pybooks.account import ChartOfAccounts, Account, AccountNumberTemplate,\
+    _AccountNumber
 
 # Control vars for the filter_accounts() method
 FILTER_TOKEN = '__'
@@ -44,6 +45,10 @@ class _Ledger:
         # Cash or Accrual
         self.accounting_method = accounting_method
 
+    @property
+    def template() -> AccountNumberTemplate:
+        raise NotImplementedError('Base class should not be called like this')
+
     def view(self) -> None:
         '''
         Print a visual representation of the ledger
@@ -58,6 +63,9 @@ class _Ledger:
         Add a new account to this ledger, either as a pre-existing Account
         instance or creating a new one from the raw details and the account
         number template associated with this ledger.
+
+        The `account` parameter is either an Account instance or the name of
+        a new account to be created.
         '''
         # If there is a name conflict, this will error out
         account = self.chart_of_accounts.add_account(account, number,
@@ -66,11 +74,72 @@ class _Ledger:
             raise DuplicateException('Account already exists in this ledger.')
         self.accounts[account.number] = account
 
+    def get_new_account(self, name:str, account_type:AccountType,
+                        initial_balance:float=0, **kwargs) -> Account:
+        '''
+        A handy utility function that allows the creation of dynamic account
+        numbers through the use of templates with incrementable fields.
+
+        Creates a new account
+
+        The kwargs to pass to this function are the same as to
+        AccountNumberTemplate._make_account_number() (the names of the segments
+        as well as the values for them) and will vary per template.
+        '''
+        # Find if the ledger's template supports incrementing
+        if self.template._increment_segment is None:
+            raise ValueError("This ledger's template does not support "
+                             "incrementing account numbers")
+        
+        # Find the first open index in the incrementable segment
+        inc_seg = self.template._increment_segment
+        max_val = int(list(inc_seg.meanings.keys())[0].pattern.replace('\\d', '9'))
+        existing_accounts = self.filter_accounts(**kwargs)
+
+        # This assumes that every auto increment account will contain a '\d'
+        if len(existing_accounts) > max_val:
+            raise OverflowError('Cannot increment AccountSegment any further') 
+
+        # Set this up for the loop
+        existing_accounts = iter(existing_accounts)
+        current_index = 0
+        while current_index <= max_val:
+            try:
+                next_account = next(existing_accounts)
+            except StopIteration:
+                # 0 existing accounts, or we have reached the end of the
+                # existing accounts
+                break
+            
+            current_try = f'{current_index:0{inc_seg.length}}'
+            if next_account._account_number[inc_seg.name] == current_try:
+                current_index += 1
+                continue
+            break
+
+        kwargs[inc_seg.name] = f'{current_index:0{inc_seg.length}}'
+        acc_num = self.template._make_account_number(**kwargs)
+
+        # print(f'Success, found empty account number: {acc_num.number}')
+        # Create the new account, add it and return it
+        new_acc = Account(name=name, number=acc_num, account_type=account_type,
+                          initial_balance=initial_balance,
+                          template=self.template)
+        
+        self.add_account(new_acc)
+        return new_acc
+
 
     def _keys_match(self, acc_key, user_key):
         '''
         Need to separate the comparing of keys (eg, "name") from their values
-        for the filter function
+        for the filter function.
+
+        This function will match exact keys as well as Django-ified
+        under_replacements.
+
+        Eg, for the key "Company Code", either "Company Code" or "company_code"
+        will return True.
         '''
         if FILTER_TOKEN in user_key:
             # Not even worrying about multiple
@@ -80,8 +149,12 @@ class _Ledger:
         # Convert to Boolean for debug statements
         keys_match = bool(re.match(f"^{acc_key.replace(' ', '_')}$", user_key,
                                    flag))
+        
+        # Need to expand this to include a direct non-transformed matching input
+        keys_match_exact = bool(re.match(f'^{acc_key}$', user_key, flag))
+
         # print(f'Comparing acc_key {acc_key} and user_key {user_key}...{keys_match}')
-        return keys_match
+        return keys_match or keys_match_exact
 
     def _term_matches_filter(self, account_val, user_key, user_val,
                              fuzzy_match=True):
@@ -154,6 +227,8 @@ class _Ledger:
         ledger.filter_accounts(account_code='121')
         '''
 
+        DEBUG = False
+
         to_return = []
         if not kwargs:
             return []
@@ -166,21 +241,24 @@ class _Ledger:
                 'name': account.name
             }
 
+            DEBUG and print('search_dict: ', search_dict)
+
             # Keep track of AND or OR behavior
             num_user_keys_matched = 0
 
-            # print('searching new account...')
+            DEBUG and print('\nsearching new account...')
             for user_key, user_value in kwargs.items():
-                # print(f'\tcomparing user key: {user_key} ({user_value})')
+                DEBUG and print(f'\tcomparing user key: {user_key} ({user_value})')
                 for acc_key, acc_value in search_dict.items():
-                    # Goahead to compare key values
+                    DEBUG and print('acc_key, acc_value: ', acc_key, acc_value)
+                    # Go ahead to compare key values
                     if self._keys_match(acc_key, user_key):
                         # Not just a simple equality check, also does filters
                         term_matches_filter = self._term_matches_filter(
                             acc_value, user_key, user_value, fuzzy_match
                         )
-                        # print(f'\t\t...to acc key {acc_key} ({acc_value})...', end='')
-                        # print(term_matches_filter)
+                        DEBUG and print(f'\t\t...to acc key {acc_key} ({acc_value})...', end='')
+                        DEBUG and print(term_matches_filter)
                         if term_matches_filter:
                             num_user_keys_matched += 1
                             # OR short-circuit
@@ -196,6 +274,7 @@ class _Ledger:
             if match_all and num_user_keys_matched == len(kwargs.items()):
                 to_return.append(account)
 
+        DEBUG and print('filter_accounts return...', to_return)
         return to_return
 
     def get_account(self, **kwargs) -> Account|None:
@@ -212,7 +291,7 @@ class _Ledger:
         return result[0]
 
     def get_net_balance(self, reporting_format, accounts=[], match_all=True,
-                        fuzzy_match=True, **kwargs)->int:
+                        fuzzy_match=True, **kwargs) -> float:
         '''
         A function to aggregate the net balances for any subset of the
         accounts contained by this ledger or its subledgers.

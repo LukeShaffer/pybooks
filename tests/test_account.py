@@ -6,6 +6,7 @@ import pytest
 from pybooks.account import Account, _AccountNumber, AccountNumberSegment,\
     AccountNumberTemplate, ChartOfAccounts
 from pybooks.journal import Journal, JournalEntry
+from pybooks.ledger import GeneralLedger
 from pybooks.enums import AccountType
 from pybooks.util import InvalidAccountNumberException, DuplicateException
 
@@ -35,7 +36,7 @@ def test_account_number_segments():
         for num in range(10, 15)
     })
 
-    seg1 = AccountNumberSegment('Comany Name', seg1_vals)
+    seg1 = AccountNumberSegment('Company Name', seg1_vals)
     seg2 = AccountNumberSegment('Department Name', {
         f'{num:02}': f'dpt{num}'
         for num in range(3)
@@ -100,6 +101,80 @@ def test_account_number_auto_segments():
     This will save a lot of time and space from needing to create new Enums for
     every little thing. 
     '''
+    seg1 = AccountNumberSegment('Company Code',
+                                {'01': 'Company 1', '02': 'Company 2'})
+    seg2 = AccountNumberSegment('Index', meanings={
+        re.compile(r'\d\d\d'): 'misc' 
+    }, is_regex=True, incrementable=True)
+
+    normal_template = AccountNumberTemplate(seg1)
+    inc_template = AccountNumberTemplate(seg1, seg2)
+
+    normal_ledger = GeneralLedger('ledger',
+                                  account_number_template=normal_template)
+    inc_ledger = GeneralLedger('inc_ledger',
+                               account_number_template=inc_template)
+    
+    # Incrementing a ledger with a template that does not support increments
+    with pytest.raises(ValueError):
+        normal_ledger.get_new_account(name='a', account_type=AccountType.CREDIT,
+                                      **{'Company Code': '01'})
+    
+    # print('Adding account b')
+    acc = inc_ledger.get_new_account(name='b', account_type=AccountType.CREDIT,
+                                     **{'Company Code': '01'})
+    assert acc._account_number.index == '000'
+
+    # print('Adding account c')
+    acc2 = inc_ledger.get_new_account(name='c', account_type=AccountType.CREDIT,
+                                      **{'Company Code': '02'})
+    assert acc2._account_number.index == '000'
+
+    # print('Adding account d')
+    acc3 = inc_ledger.get_new_account(name='d', account_type=AccountType.CREDIT,
+                                      **{'Company Code': '01'})
+    assert acc3._account_number.index == '001'
+
+    with pytest.raises(ValueError):
+        error_seg = AccountNumberSegment(name='error',
+                                         meanings={re.compile('01'): 'A'},
+                                         is_regex=True, incrementable=True)
+        # Creating a template with 2 incrementable segments raises an error
+        _error_template = AccountNumberTemplate(seg1, seg2, error_seg)
+
+    # Test that removed accounts are re-filled
+    # The best way I have to delete an account
+
+
+    # Test Account Number Increment Overflow Detection
+    seg_overflow = AccountNumberSegment(name='overflow',
+                                        meanings={re.compile(r'\d'): 'Index'},
+                                        is_regex=True, incrementable=True)
+    overflow_template = AccountNumberTemplate(seg1, seg_overflow)
+    overflow_ledger = GeneralLedger('overflow ledger',
+                                    account_number_template=overflow_template)
+    
+    for _ in range(10):
+        overflow_ledger.get_new_account(name=f'{_}',
+                                        account_type=AccountType.CREDIT,
+                                        **{'Company Code': '01'})
+    
+    with pytest.raises(OverflowError):
+        overflow_ledger.get_new_account(name='o',
+                                        account_type=AccountType.DEBIT,
+                                        **{'Company Code': '01'})
+        
+    # Creating an AccountNumberSegment with an incrementable field can
+    # only have its meanings be a dict with a single regex line
+    with pytest.raises(AssertionError):
+        multiple_regex_segment = AccountNumberSegment(
+            name='a', meanings={
+                re.compile(r'1\d'): 'test',
+                re.compile(r'2\d'): 'test2'
+            },
+            is_regex=True, incrementable=True
+        )
+
 
 
 def test_account_number_template():
