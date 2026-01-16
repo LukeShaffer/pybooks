@@ -6,7 +6,7 @@ import pytest
 from pybooks.account import Account, _AccountNumber, AccountNumberSegment,\
     AccountNumberTemplate, ChartOfAccounts
 from pybooks.journal import Journal, JournalEntry
-from pybooks.ledger import GeneralLedger
+from pybooks.ledger import GeneralLedger, SubLedger
 from pybooks.enums import AccountType
 from pybooks.util import InvalidAccountNumberException, DuplicateException
 
@@ -174,6 +174,33 @@ def test_account_number_auto_segments():
             },
             is_regex=True, incrementable=True
         )
+
+def test_auto_segments_with_subledgers():
+    '''
+    Need to make sure that auto incrementing account numbers work as expected
+    with nested ledgers
+    '''
+    seg1 = seg1 = AccountNumberSegment('Company Code',
+                                {'01': 'Company 1', '02': 'Company 2'})
+    auto_seg = AccountNumberSegment(name='overflow',
+                                    meanings={re.compile(r'\d'): 'Index'},
+                                    is_regex=True, incrementable=True)
+    template = AccountNumberTemplate(seg1, auto_seg)
+    gen_l = GeneralLedger(name='gen_ledg', account_number_template=template)
+
+    sub_l = SubLedger(name='sub', general_ledger=gen_l)
+
+    ac1 = gen_l.get_new_account(name='a', account_type=AccountType.CREDIT,
+                                **{'Company Code': '01'})
+    ac2 = sub_l.get_new_account(name='b', account_type=AccountType.CREDIT,
+                                **{'Company Code': '01'})
+    
+    print(ac1.number, ac2.number)
+
+    assert ac1._account_number.overflow == '0'
+    assert ac2._account_number.overflow == '0'
+
+    assert ac1._account_number == ac2._account_number
 
 
 

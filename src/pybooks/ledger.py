@@ -373,22 +373,29 @@ class SubLedger(_Ledger):
     A sub ledger with a collection of accounts.
     Must have a general ledger to which it is attached.
     '''
-    def __init__(self, name, general_ledger:GeneralLedger=None, **kwargs):
+    def __init__(self, name, parent_ledger:GeneralLedger|SubLedger=None, **kwargs):
         # Account number templates can only live on GeneralLedger instances
         if 'account_number_template' in kwargs:
             raise ValueError('account_number_template can only be defined on '
                 'GeneralLedger instances')
 
         super().__init__(name, *kwargs)
-        general_ledger.add_subledger(subledger=self)
-        self.general_ledger = general_ledger
+        parent_ledger.add_subledger(subledger=self)
+        self.parent_ledger = parent_ledger
+        if isinstance(parent_ledger, GeneralLedger):
+            self.general_ledger = parent_ledger
+        else:
+            self.general_ledger = self.parent_ledger.general_ledger
+
+        self.chart_of_accounts.template = self.template
         
 
     @property
     def template(self):
         if self.general_ledger is None:
             return None
-        return self.general_ledger.account_number_template
+        return self.general_ledger.template
+
 
 
     
