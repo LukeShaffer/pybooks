@@ -188,7 +188,7 @@ def test_auto_segments_with_subledgers():
     template = AccountNumberTemplate(seg1, auto_seg)
     gen_l = GeneralLedger(name='gen_ledg', account_number_template=template)
 
-    sub_l = SubLedger(name='sub', general_ledger=gen_l)
+    sub_l = SubLedger(name='sub', parent_ledger=gen_l)
 
     ac1 = gen_l.get_new_account(name='a', account_type=AccountType.CREDIT,
                                 **{'Company Code': '01'})
@@ -202,7 +202,23 @@ def test_auto_segments_with_subledgers():
 
     assert ac1._account_number == ac2._account_number
 
+def test_creating_accounts_with_int_segment_values():
+    '''
+    For convenience I would like to be able to create account segments without
+    having to specify everything as a string wit leading zeros, and to have
+    those be automatically assumed and applied
+    '''
 
+    seg = AccountNumberSegment('test seg', {re.compile(r'\d\d\d'): 'whatever'},
+                               is_regex=True)
+    template = AccountNumberTemplate(seg)
+    acc1 = template.make_account(name='acc1', account_type=AccountType.CREDIT,
+                                 **{'whatever': 0})
+    acc2 = template.make_account(name='acc2', account_type=AccountType.DEBIT,
+                                 **{'whatever': 1})
+
+    assert acc1._account_number.whatever == '000'
+    assert acc2._account_number.whatever == '001'
 
 def test_account_number_template():
     template = init_template()
