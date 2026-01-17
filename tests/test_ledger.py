@@ -20,8 +20,8 @@ def test_init():
     gen = GeneralLedger('general ledger', account_number_template=template)
     GeneralLedger('gen2', account_number_template=template,
                   accounting_method=None)
-    SubLedger('Cash', general_ledger=gen)
-    SubLedger('Cash2', general_ledger=gen, accounting_method=None)
+    SubLedger('Cash', parent_ledger=gen)
+    SubLedger('Cash2', parent_ledger=gen, accounting_method=None)
 
     with pytest.raises(ValueError):
         SubLedger('Cash3', account_number_template='some value')
@@ -31,7 +31,7 @@ def test_init():
     template = AccountNumberTemplate(seg1)
 
     gen = GeneralLedger('general', account_number_template=template)
-    sub = SubLedger('Cash', general_ledger=gen)
+    sub = SubLedger('Cash', parent_ledger=gen)
     sub.add_account('test_account', '1', AccountType.CREDIT)
 
 def test_add_accounts():

@@ -357,7 +357,7 @@ class GeneralLedger(_Ledger):
         if subledger is None:
             subledger = SubLedger(
                 self._make_subledger_name(name),
-                general_ledger=self
+                parent_ledger=self
             )
         else:
             if subledger in self.subledgers:
