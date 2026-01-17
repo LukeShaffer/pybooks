@@ -257,7 +257,9 @@ class AccountNumberTemplate:
                 error_msg = (f'Input account details did not include'
                               f'mandatory segment "{segment_name}"')
                 raise ValueError(error_msg)
-            number += kwargs[segment_name]
+            # New - cast to string so that int values can be used to create
+            # accounts
+            number += f'{kwargs[segment_name]:0{self.segments[segment_name].length}}'
             number += self.separator
 
         if number.endswith(self.separator):
