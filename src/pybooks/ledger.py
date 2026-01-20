@@ -11,8 +11,7 @@ from typing import Union  # Multiple type annotation
 
 from pybooks.util import DuplicateException
 from pybooks.enums import AccountingMethods, AccountType
-from pybooks.account import ChartOfAccounts, Account, AccountNumberTemplate,\
-    _AccountNumber
+from pybooks.account import ChartOfAccounts, Account, AccountNumberTemplate
 
 # Control vars for the filter_accounts() method
 FILTER_TOKEN = '__'
@@ -373,7 +372,8 @@ class SubLedger(_Ledger):
     A sub ledger with a collection of accounts.
     Must have a general ledger to which it is attached.
     '''
-    def __init__(self, name, parent_ledger:GeneralLedger|SubLedger=None, **kwargs):
+    def __init__(self, name, parent_ledger:GeneralLedger|SubLedger=None,
+                 control_account:Account=None, **kwargs):
         # Account number templates can only live on GeneralLedger instances
         if 'account_number_template' in kwargs:
             raise ValueError('account_number_template can only be defined on '
@@ -388,6 +388,8 @@ class SubLedger(_Ledger):
             self.general_ledger = self.parent_ledger.general_ledger
 
         self.chart_of_accounts.template = self.template
+
+        self.control_account = control_account
         
 
     @property
@@ -395,6 +397,8 @@ class SubLedger(_Ledger):
         if self.general_ledger is None:
             return None
         return self.general_ledger.template
+    
+    
 
 
 

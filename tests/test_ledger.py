@@ -358,3 +358,39 @@ def test_view():
     pass
 
 # TODO add other tests for other views and ratios of a ledger
+
+def test_control_accounts():
+    '''
+    Now that I am expanding with the concept of control accounts, I need to
+    lay the groundwork for how they should function
+    '''
+    template = init_template()
+    gen = GeneralLedger(name='gen', account_number_template=template)
+    ac1 = template.make_account(name='asset control',
+                                account_type=AccountType.DEBIT,
+                                **{
+                                    'Company Code': 1,
+                                    'Department Code': 0,
+                                    'Account Code': 100
+                                })
+    gen.add_account(ac1)
+    sub1 = SubLedger(name='subl', parent_ledger=gen, control_account=ac1)
+    ac2 = template.make_account(name='my_asset',
+                                account_type=AccountType.DEBIT,
+                                **{
+                                    'Company Code': 1,
+                                    'Department Code': 1,
+                                    'Account Code': 200
+                                })
+    ac3 = template.make_account(name='whatever',
+                                account_type=AccountType.CREDIT,
+                                **{
+                                    'Company Code': 2,
+                                    'Department Code': 1,
+                                    'Account Code': 300
+                                })
+    sub1.add_account(ac2)
+
+    je = JournalEntry(date=datetime.now(), acc_debit=ac2, acc_credit=ac3,
+                      amount=100, memo='Test transaction')
+    assert ac1.net_balance == 100
