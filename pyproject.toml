@@ -11,7 +11,7 @@ authors = [
     {name="Luke Shaffer", email="lukeshaffer123@gmail.com"}
 ]
 description = "A general purpose accounting / ledger system"
-requires-python = ">=3.6,<3.10"
+requires-python = ">3.10"
 classifiers = [
     "Programming Language :: Python :: 3",
     "Operating System :: OS Independent"
