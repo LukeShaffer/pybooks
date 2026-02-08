@@ -16,3 +16,8 @@ classifiers = [
     "Programming Language :: Python :: 3",
     "Operating System :: OS Independent"
 ]
+
+[dependency-groups]
+dev = [
+    "pytest>=7.0.1",
+]
